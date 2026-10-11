@@ -10,7 +10,7 @@ export async function render(el) {
       <h2>Download a backup</h2>
       <p class="muted">One .zip file with every account, trade, summary, payout and screenshot.
         Keep copies somewhere safe (cloud drive, USB stick).</p>
-      <a class="btn primary" href="/api/backup" download>Download backup (.zip)</a>
+      <a class="btn primary" href="/api/backup" download data-act="download">Download backup (.zip)</a>
       <p class="note">Data folder: <span class="num">${esc(meta.data_dir)}</span>${meta.demo ? " (demo data)" : ""}</p>
     </div>
     <div class="panel">
@@ -22,6 +22,16 @@ export async function render(el) {
         <button class="btn" data-act="restore" disabled>Restore…</button>
       </div>
     </div>`;
+  // In the desktop app, save through a native Save dialog instead of a browser download.
+  el.querySelector("[data-act=download]").addEventListener("click", async (e) => {
+    const bridge = window.pywebview?.api;
+    if (!bridge?.save_backup) return;
+    e.preventDefault();
+    try {
+      const res = await bridge.save_backup();
+      if (res.saved) toast(`Backup saved to ${res.path}`);
+    } catch (err) { toast(`Backup failed: ${err.message || err}`, "error"); }
+  });
   const input = el.querySelector("input[type=file]"), btn = el.querySelector("[data-act=restore]");
   input.addEventListener("change", () => { btn.disabled = !input.files.length; });
   btn.addEventListener("click", async () => {

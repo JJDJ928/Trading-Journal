@@ -6,3 +6,8 @@ venv/
 # Your real records and the demo sandbox never go into git
 data/
 demo-data/
+
+# macOS app build output
+build/
+dist/
+.venv-build/

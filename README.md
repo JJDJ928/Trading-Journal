@@ -5,7 +5,28 @@ accounts, a trade journal with screenshots, payouts, and the system's real
 statistics. Everything stays on your computer. No broker connection and no
 credentials.
 
-## Run it on your computer
+## Mac app
+
+Rinse Tracker can be installed as a normal Mac app with its own window (no browser).
+
+**Install**
+
+1. On GitHub open **Actions → Build macOS app**, click the latest green run, and download
+   **Rinse-Tracker-macOS** under *Artifacts* (it's a zip containing `Rinse-Tracker.dmg`).
+2. Open the `.dmg` and drag **Rinse Tracker** into **Applications**.
+3. First launch only: the app isn't signed with an Apple developer certificate, so macOS
+   blocks it. Open it once, then go to **System Settings → Privacy & Security**, scroll
+   down and click **Open Anyway** (on older macOS: right-click the app → **Open**).
+
+The app keeps your data in `~/Library/Application Support/Rinse Tracker`. To move
+records from the browser version, use **Backup & Restore**: download a backup there and
+restore it in the app.
+
+The build is for Apple Silicon Macs (M1 and newer). To build it yourself on a Mac:
+`bash scripts/build_mac.sh` → `dist/Rinse-Tracker.dmg`. To run the window from source:
+`pip install -r requirements.txt -r requirements-desktop.txt && python3 desktop.py`.
+
+## Run it in your browser
 
 **One-time setup**
 
@@ -114,7 +135,9 @@ data to `data/backups/pre-restore-<time>.zip`, then swaps the backup in.
 ## Project structure
 
 ```
-run.py                     start the app (--demo, --port, --no-browser)
+run.py                     start the app in your browser (--demo, --port, --no-browser)
+desktop.py                 start the app in its own window (used by the Mac app)
+scripts/build_mac.sh       build "Rinse Tracker.app" and the .dmg (runs on a Mac / GitHub Actions)
 rinse_tracker/
   __init__.py              app factory, error handling
   db.py                    schema + migrations (add future changes in migrate())
