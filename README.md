@@ -5,23 +5,41 @@ accounts, a trade journal with screenshots, payouts, and the system's real
 statistics. Everything stays on your computer. No broker connection and no
 credentials.
 
-## Run it
+## Run it on your computer
 
-Requires Python 3.10+.
+**One-time setup**
+
+1. Install Python 3.10 or newer from [python.org/downloads](https://www.python.org/downloads/).
+   On Windows, tick **"Add python.exe to PATH"** in the installer.
+2. Download this project: on GitHub press **Code → Download ZIP** and unzip it
+   (or `git clone` it).
+3. Open a terminal in the project folder (Windows: open the folder, type `cmd` in
+   the address bar and press Enter; Mac: right-click the folder → *New Terminal at Folder*).
+4. Install the requirements:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+   (On Mac use `pip3` if `pip` isn't found.)
+
+**Every time**
 
 ```bash
-pip install -r requirements.txt
-python run.py            # opens http://127.0.0.1:5050
+python run.py            # Mac: python3 run.py
 ```
+
+Your browser opens at http://127.0.0.1:5050. Keep the terminal window open while you
+use the app; close it (or press Ctrl+C) to stop.
 
 Your data is kept in `./data/`:
 
-- `data/rinse.db`: SQLite database (accounts, trades, summaries, payouts)
+- `data/rinse.db`: SQLite database (accounts, trades, summaries, payouts, coach conversations)
 - `data/uploads/`: screenshot image files (the database stores only their names)
 - `data/backups/`: automatic safety copies made before any restore
 
 Closing and reopening the app keeps everything. To keep the data somewhere else,
-set `RINSE_DATA_DIR=/path/to/folder`.
+set `RINSE_DATA_DIR=/path/to/folder`. The welcome screen greets you by name; change it
+with `RINSE_USER_NAME=YourName`.
 
 ### Demo / sample data
 
@@ -44,8 +62,25 @@ yellow **DEMO DATA** banner. It never reads or writes `./data/`.
 | View full-size screenshots | Click a thumbnail (arrow keys to flip through) |
 | Record a payout | Funded account → **+ Record payout**, or the **Payouts** page |
 | Back up / restore | **Backup & Restore** in the sidebar |
+| Review a trade with the coach | **Review with coach** on any trade, or the **Coach** page |
 
 `Ctrl+Enter` saves any open form. `Esc` closes it.
+
+## AI coach
+
+The **Coach** page is a personal trading coach powered by Claude (model
+`claude-opus-5-5`). Press **Review with coach** on any trade to go through it
+together, screenshots included, or ask general questions about your journal.
+Conversations are saved so you can come back to them.
+
+Setup: create an API key at [console.anthropic.com](https://console.anthropic.com/settings/keys)
+and paste it on the Coach page (it's stored in `data/anthropic_api_key`, never in
+backups), or set the `ANTHROPIC_API_KEY` environment variable. API usage is billed to
+your Anthropic account.
+
+Privacy: this is the only feature that sends data off your computer. Starting a
+conversation sends a snapshot of your stats, accounts and recent trades (and, for a
+trade review, that trade's screenshots) to the Anthropic API. Everything else stays local.
 
 ## How the numbers are calculated
 
@@ -90,6 +125,7 @@ rinse_tracker/
   payouts.py               payouts
   stats.py                 dashboard / rinse statistics calculations
   backup.py                backup and restore
+  coach.py                 AI coach (Anthropic API), conversations
   sample_data.py           demo seed (refuses to run outside demo mode)
   static/
     index.html, css/app.css

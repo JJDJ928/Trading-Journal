@@ -1,6 +1,7 @@
 // Trade cards, shared by the Trade Journal and the account detail page.
 import { api } from "../api.js";
 import { dataChanged, openTradeForm } from "../forms.js";
+import { reviewTrade } from "./coach.js";
 import {
   accountLabel, confirmDialog, esc, fmtDateTime, money, moneyClass, openLightbox, resultBadge, toast,
 } from "../ui.js";
@@ -16,6 +17,7 @@ export function tradeCards(trades, { showAccount = true } = {}) {
         ${showAccount ? `<a class="acct" href="#/accounts/${t.account_id}">${esc(accountLabel(t))}</a>` : ""}
         <span class="spacer"></span>
         <span class="trade-actions">
+          <button class="btn ghost sm" data-act="coach">Review with coach</button>
           <button class="btn ghost sm" data-act="edit">Edit</button>
           <button class="btn ghost sm" data-act="delete">Delete</button>
         </span>
@@ -39,6 +41,7 @@ export function bindTradeCards(container, trades) {
       return;
     }
     const act = e.target.closest("[data-act]")?.dataset.act;
+    if (act === "coach") reviewTrade(trade.id);
     if (act === "edit") openTradeForm({ trade });
     if (act === "delete") {
       const n = trade.screenshots.length;

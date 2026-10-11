@@ -22,12 +22,26 @@
         <a href="#/trades" data-nav="trades">Trade Journal</a>
         <a href="#/payouts" data-nav="payouts">Payouts</a>
         <a href="#/stats" data-nav="stats">Rinse Statistics</a>
+        <a href="#/coach" data-nav="coach">Coach</a>
       </nav>
       <div class="nav nav-bottom">
         <a href="#/backup" data-nav="backup">Backup &amp; Restore</a>
       </div>
     </aside>
     <main id="view" class="main" tabindex="-1"></main>
+  </div>
+  <div id="welcome" class="welcome" hidden>
+    <div class="welcome-card">
+      <svg viewBox="0 0 32 32" width="44" height="44" aria-hidden="true"><path d="M7 22l6-7 5 4 7-9" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <h1>Welcome <span data-name>Jordi</span></h1>
+      <p class="welcome-date"></p>
+      <div class="welcome-stats"></div>
+      <div class="welcome-actions">
+        <button class="btn primary" data-welcome="enter">Open dashboard</button>
+        <button class="btn" data-welcome="trade">Log a trade</button>
+        <button class="btn" data-welcome="coach">Talk to coach</button>
+      </div>
+    </div>
   </div>
   <div id="drop-overlay" class="drop-overlay" hidden><div>Drop screenshots to log a new trade</div></div>
   <div id="modal-root"></div>

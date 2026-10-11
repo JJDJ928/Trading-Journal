@@ -2,9 +2,10 @@
 // current page (via "data-changed") so every number stays current.
 import { api } from "./api.js";
 import { openTradeForm } from "./forms.js";
-import { esc, isModalOpen } from "./ui.js";
+import { esc, isModalOpen, money } from "./ui.js";
 import * as accounts from "./views/accounts.js";
 import * as backup from "./views/backup.js";
+import * as coach from "./views/coach.js";
 import * as dashboard from "./views/dashboard.js";
 import * as payouts from "./views/payouts.js";
 import * as stats from "./views/stats.js";
@@ -17,6 +18,9 @@ const routes = [
   [/^#\/trades$/, "trades", (el) => trades.render(el)],
   [/^#\/payouts$/, "payouts", (el) => payouts.render(el)],
   [/^#\/stats$/, "stats", (el) => stats.render(el)],
+  [/^#\/coach$/, "coach", (el) => coach.render(el)],
+  [/^#\/coach\/(\d+)$/, "coach", (el, id) => coach.render(el, id)],
+  [/^#\/coach\/review\/(\d+)$/, "coach", (el, tradeId) => coach.render(el, null, tradeId)],
   [/^#\/backup$/, "backup", (el) => backup.render(el)],
 ];
 
@@ -74,5 +78,39 @@ window.addEventListener("drop", (e) => {
   if (files.length) openTradeForm({ accountId: currentAccount(), files });
 });
 
-api.get("/api/meta").then((m) => { document.getElementById("demo-banner").hidden = !m.demo; }).catch(() => {});
+// Welcome screen, shown once each time the app is opened (per browser tab).
+async function showWelcome(meta) {
+  try { if (sessionStorage.getItem("rinse.welcomed")) return; } catch { /* storage unavailable */ }
+  const el = document.getElementById("welcome");
+  el.querySelector("[data-name]").textContent = meta.user_name || "back";
+  el.querySelector(".welcome-date").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  try {
+    const { summary: s } = await api.get("/api/dashboard");
+    el.querySelector(".welcome-stats").innerHTML = `
+      <div><span>Active evaluations</span><strong>${s.evaluations_active}</strong></div>
+      <div><span>Funded accounts</span><strong>${s.funded_active}</strong></div>
+      <div><span>Net cash flow</span><strong class="${s.net_cash_flow > 0 ? "pos" : s.net_cash_flow < 0 ? "neg" : ""}">${money(s.net_cash_flow, { sign: true })}</strong></div>`;
+  } catch { /* stats are a nice-to-have here */ }
+  el.hidden = false;
+  let closed = false;
+  const close = (then) => {
+    if (closed) return;
+    closed = true;
+    try { sessionStorage.setItem("rinse.welcomed", "1"); } catch { /* ignore */ }
+    document.removeEventListener("keydown", onKey);
+    el.classList.add("leaving");
+    setTimeout(() => { el.hidden = true; el.classList.remove("leaving"); then && then(); }, 280);
+  };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  el.querySelector("[data-welcome=enter]").onclick = () => close(() => { location.hash = "#/"; });
+  el.querySelector("[data-welcome=trade]").onclick = () => close(() => openTradeForm());
+  el.querySelector("[data-welcome=coach]").onclick = () => close(() => { location.hash = "#/coach"; });
+  el.querySelector("[data-welcome=enter]").focus();
+}
+
+api.get("/api/meta").then((m) => {
+  document.getElementById("demo-banner").hidden = !m.demo;
+  showWelcome(m);
+}).catch(() => {});
 render();

@@ -7,7 +7,7 @@ import sqlite3
 
 from flask import current_app, g
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
@@ -75,6 +75,26 @@ CREATE TABLE IF NOT EXISTS payouts (
     updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
+-- AI coach conversations (added in schema v2). Messages are append-only and
+-- store the exact content blocks sent to / returned by the API.
+CREATE TABLE IF NOT EXISTS coach_threads (
+    id          INTEGER PRIMARY KEY,
+    title       TEXT    NOT NULL,
+    trade_id    INTEGER REFERENCES trades(id) ON DELETE SET NULL,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS coach_messages (
+    id           INTEGER PRIMARY KEY,
+    thread_id    INTEGER NOT NULL REFERENCES coach_threads(id) ON DELETE CASCADE,
+    role         TEXT    NOT NULL CHECK (role IN ('user', 'assistant')),
+    content      TEXT    NOT NULL,  -- JSON list of content blocks
+    display_text TEXT,              -- what the conversation view shows
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_coach_messages ON coach_messages(thread_id, id);
 CREATE INDEX IF NOT EXISTS idx_trades_account ON trades(account_id, traded_at);
 CREATE INDEX IF NOT EXISTS idx_screens_trade ON screenshots(trade_id);
 CREATE INDEX IF NOT EXISTS idx_payouts_account ON payouts(account_id);
@@ -109,6 +129,7 @@ def migrate(conn):
     records (and restored backups) keep working.
     """
     version = conn.execute("PRAGMA user_version").fetchone()[0]
+    # v2: coach tables, created by SCHEMA above (CREATE TABLE IF NOT EXISTS).
     if version < SCHEMA_VERSION:
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 

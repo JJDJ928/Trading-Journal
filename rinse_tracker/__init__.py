@@ -4,7 +4,7 @@ import os
 from flask import Flask, jsonify, send_from_directory
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
-from . import accounts, backup, db, payouts, stats, trades
+from . import accounts, backup, coach, db, payouts, stats, trades
 from .validation import NotFound, ValidationError
 
 DEFAULT_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
@@ -18,6 +18,7 @@ def create_app(data_dir=None, demo=False):
         DB_PATH=os.path.join(data_dir, "rinse.db"),
         UPLOAD_DIR=os.path.join(data_dir, "uploads"),
         DEMO=demo,
+        USER_NAME=os.environ.get("RINSE_USER_NAME", "Jordi"),
         MAX_CONTENT_LENGTH=500 * 1024 * 1024,  # whole request (several screenshots or a backup)
     )
     os.makedirs(app.config["UPLOAD_DIR"], exist_ok=True)
@@ -25,16 +26,19 @@ def create_app(data_dir=None, demo=False):
     app.json.sort_keys = False
     app.teardown_appcontext(db.close_db)
 
-    for module in (accounts, trades, payouts, stats, backup):
+    for module in (accounts, trades, payouts, stats, backup, coach):
         app.register_blueprint(module.bp)
 
     @app.get("/api/meta")
     def meta():
-        return jsonify({"demo": app.config["DEMO"], "data_dir": app.config["DATA_DIR"]})
+        return jsonify({"demo": app.config["DEMO"], "data_dir": app.config["DATA_DIR"],
+                        "user_name": app.config["USER_NAME"]})
 
     @app.get("/")
     def index():
         return send_from_directory(app.static_folder, "index.html")
+
+    coach.register_errors(app)
 
     @app.errorhandler(ValidationError)
     def on_validation(err):
