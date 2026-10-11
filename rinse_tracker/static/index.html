@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rinse Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2311161d'/><path d='M7 22l6-7 5 4 7-9' stroke='%2334d399' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div id="demo-banner" class="demo-banner" hidden>DEMO DATA: sample records in a separate folder. Your real records are not shown.</div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M7 22l6-7 5 4 7-9" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Rinse Tracker</span>
+      </div>
+      <button class="btn primary block" data-quick="trade">+ Log trade</button>
+      <nav class="nav">
+        <a href="#/" data-nav="dashboard">Dashboard</a>
+        <a href="#/accounts" data-nav="accounts">Accounts</a>
+        <a href="#/trades" data-nav="trades">Trade Journal</a>
+        <a href="#/payouts" data-nav="payouts">Payouts</a>
+        <a href="#/stats" data-nav="stats">Rinse Statistics</a>
+      </nav>
+      <div class="nav nav-bottom">
+        <a href="#/backup" data-nav="backup">Backup &amp; Restore</a>
+      </div>
+    </aside>
+    <main id="view" class="main" tabindex="-1"></main>
+  </div>
+  <div id="drop-overlay" class="drop-overlay" hidden><div>Drop screenshots to log a new trade</div></div>
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

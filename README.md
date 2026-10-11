@@ -1,0 +1,109 @@
+# Rinse Tracker
+
+A local-first web app for tracking a prop-firm rinse system: evaluations, funded
+accounts, a trade journal with screenshots, payouts, and the system's real
+statistics. Everything stays on your computer. No broker connection and no
+credentials.
+
+## Run it
+
+Requires Python 3.10+.
+
+```bash
+pip install -r requirements.txt
+python run.py            # opens http://127.0.0.1:5050
+```
+
+Your data is kept in `./data/`:
+
+- `data/rinse.db`: SQLite database (accounts, trades, summaries, payouts)
+- `data/uploads/`: screenshot image files (the database stores only their names)
+- `data/backups/`: automatic safety copies made before any restore
+
+Closing and reopening the app keeps everything. To keep the data somewhere else,
+set `RINSE_DATA_DIR=/path/to/folder`.
+
+### Demo / sample data
+
+```bash
+python run.py --demo
+```
+
+This runs against a separate `./demo-data/` folder with sample records and shows a
+yellow **DEMO DATA** banner. It never reads or writes `./data/`.
+
+## Using it
+
+| Task | How |
+|---|---|
+| Add an evaluation | **Accounts → + Add account** (or Dashboard quick action) |
+| Pass / fail an evaluation | Open the account → **Mark passed** / **Mark failed** |
+| Get the funded account | On a passed evaluation → **Create funded account** (links the two, once) |
+| Log a trade | **+ Log trade** (sidebar, always visible), or drag screenshots anywhere onto the page |
+| Add screenshots | Drop images onto the trade form, paste with Ctrl+V, or click to browse |
+| View full-size screenshots | Click a thumbnail (arrow keys to flip through) |
+| Record a payout | Funded account → **+ Record payout**, or the **Payouts** page |
+| Back up / restore | **Backup & Restore** in the sidebar |
+
+`Ctrl+Enter` saves any open form. `Esc` closes it.
+
+## How the numbers are calculated
+
+- **Evaluations purchased**: every account of type Evaluation.
+- **Passed**: evaluations with a pass date (Passed, Passed → Funded, or Closed after passing).
+- **Failed**: evaluations with status Failed / Breached.
+- **Pass rate**: passed ÷ (passed + failed). Active evaluations, and evaluations
+  closed without passing, are not counted as failures.
+- **Funded accounts**: accounts of type Funded. Converting an evaluation creates
+  one linked funded account; the evaluation is counted once as an evaluation and
+  the funded account once as funded. An evaluation can only be converted once.
+- **Money spent**: purchase cost of every account (evaluation fees plus any
+  activation fee entered for a funded account).
+- **Payouts received**: only payouts with status **Paid**, using the *amount
+  actually received*. Requested / Approved payouts are shown as pending and not
+  counted. Rejected payouts never count.
+- **Net cash flow**: payouts received − money spent.
+- **Trade P&L** is shown separately as money earned on an account. It is not
+  cash, and a profitable funded account is never assumed to have paid out.
+
+Failed accounts are kept (with their trades) so the history and pass rate stay
+accurate. Delete is only for records created by mistake.
+
+## Backup and restore
+
+**Download backup** produces a single `.zip` containing a consistent copy of the
+database, all screenshots and a manifest. **Restore** checks the file (valid zip,
+Rinse Tracker manifest, database integrity, required tables), saves your current
+data to `data/backups/pre-restore-<time>.zip`, then swaps the backup in.
+
+## Project structure
+
+```
+run.py                     start the app (--demo, --port, --no-browser)
+rinse_tracker/
+  __init__.py              app factory, error handling
+  db.py                    schema + migrations (add future changes in migrate())
+  validation.py            input parsing with per-field error messages
+  images.py                screenshot validation (by file contents) and storage
+  accounts.py              accounts, lifecycle rules, evaluation → funded
+  trades.py                trade journal + screenshots
+  payouts.py               payouts
+  stats.py                 dashboard / rinse statistics calculations
+  backup.py                backup and restore
+  sample_data.py           demo seed (refuses to run outside demo mode)
+  static/
+    index.html, css/app.css
+    js/api.js, ui.js, forms.js, app.js (router)
+    js/views/              one file per section
+tests/                     pytest: calculations, uploads, persistence, backup
+```
+
+Each domain is one backend module (API routes + rules) and one frontend view,
+so a new feature usually means adding a module and a view without touching the
+rest.
+
+## Tests
+
+```bash
+python -m pytest -q
+```
