@@ -3,6 +3,9 @@
 // Opens after IDLE_MINUTES without mouse or keyboard input, or from the
 // "AFK" button in the sidebar. Any key, click or real mouse movement closes it.
 //
+// The galaxy's colour follows today's recorded trade P&L: green when you're
+// up for the day, red when you're down, grey when flat or no trades yet.
+//
 // To build on it: add elements inside `.afk-content` in buildScreen(), and
 // update them in tick() (called once a second while the screen is open).
 
@@ -10,10 +13,24 @@ const IDLE_MINUTES = 5;
 const STAR_COUNT = 2400;   // stars in the galaxy's spiral arms
 const DUST_COUNT = 350;    // faint background stars
 const ARMS = 3;
+const MOOD_REFRESH_SECONDS = 60;
+
+// Each mood: three star tints (most stars use the first) and four cloud colours
+// (two drifting nebulae, the glow around the core, the bright core itself).
+const PALETTES = {
+  flat: { stars: [[215, 215, 225], [160, 180, 255], [200, 160, 255]],
+          clouds: [[60, 60, 90], [90, 60, 110], [170, 170, 200], [235, 235, 245]] },
+  up:   { stars: [[205, 240, 220], [80, 220, 150], [160, 255, 205]],
+          clouds: [[20, 95, 60], [35, 125, 85], [90, 200, 140], [220, 255, 235]] },
+  down: { stars: [[245, 212, 212], [235, 90, 90], [255, 150, 140]],
+          clouds: [[105, 20, 28], [135, 40, 45], [210, 100, 100], [255, 230, 230]] },
+};
 
 let screen = null, canvas = null, ctx = null;
 let open = false, frame = 0, clockTimer = 0, idleTimer = 0;
-let stars = [], dust = [], startTime = 0, userName = "";
+let stars = [], dust = [], startTime = 0, userName = "", ticks = 0;
+let mood = "flat";
+let palette = clonePalette(PALETTES.flat);   // what is drawn; eases toward PALETTES[mood]
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export function initAfk({ name, canOpen = () => true }) {
@@ -36,6 +53,8 @@ export function openAfk() {
   screen.hidden = false;
   requestAnimationFrame(() => screen.classList.add("visible"));
   startTime = performance.now() - Math.random() * 60_000;
+  ticks = 0;
+  refreshMood();
   tick();
   clockTimer = setInterval(tick, 1000);
   frame = requestAnimationFrame(draw);
@@ -93,10 +112,41 @@ function buildScreen() {
 }
 
 function tick() {
+  if (++ticks % MOOD_REFRESH_SECONDS === 0) refreshMood();
   const now = new Date();
   screen.querySelector(".afk-time").textContent = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   screen.querySelector(".afk-date").textContent = now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
 }
+
+// ---------------------------------------------------------------- mood
+
+async function refreshMood() {
+  try {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const resp = await fetch(`/api/today?date=${today}`);
+    if (!resp.ok) return;
+    const { pnl } = await resp.json();
+    mood = pnl > 0 ? "up" : pnl < 0 ? "down" : "flat";
+    if (reducedMotion) { palette = clonePalette(PALETTES[mood]); draw(performance.now()); }
+  } catch { /* keep the current colour if the app can't be reached */ }
+}
+
+function clonePalette(p) {
+  return { stars: p.stars.map((c) => [...c]), clouds: p.clouds.map((c) => [...c]) };
+}
+
+// Ease the drawn colours a little toward the target each frame (~2 s fade).
+function easePalette() {
+  const target = PALETTES[mood];
+  for (const key of ["stars", "clouds"]) {
+    palette[key].forEach((c, i) => {
+      for (let k = 0; k < 3; k++) c[k] += (target[key][i][k] - c[k]) * 0.03;
+    });
+  }
+}
+
+const rgb = (c) => `${c[0] | 0}, ${c[1] | 0}, ${c[2] | 0}`;
 
 // ---------------------------------------------------------------- galaxy
 
@@ -121,8 +171,7 @@ function makeStars() {
       r,
       a: (arm / ARMS) * Math.PI * 2 + (r / radius) * 4.2 + spread,
       size: Math.random() < 0.06 ? 1.6 + Math.random() * 1.2 : 0.4 + Math.random() * 1.1,
-      // mostly grey-white, a few cool blue/violet stars
-      color: tint < 0.75 ? [215, 215, 225] : tint < 0.9 ? [160, 180, 255] : [200, 160, 255],
+      tint: tint < 0.75 ? 0 : tint < 0.9 ? 1 : 2,   // index into the palette's star tints
       alpha: 0.35 + Math.random() * 0.65,
       twinkle: Math.random() * Math.PI * 2,
     };
@@ -136,20 +185,22 @@ function makeStars() {
 function draw(now) {
   const t = reducedMotion ? 0 : (now - startTime) / 1000;
   const w = innerWidth, h = innerHeight, cx = w / 2, cy = h / 2;
+  easePalette();
+  const [c0, c1, c2, c3] = palette.clouds.map(rgb);
   ctx.fillStyle = "#030304";
   ctx.fillRect(0, 0, w, h);
 
   // Slowly drifting nebula clouds.
   const clouds = [
-    [cx + Math.cos(t * 0.010) * w * 0.18, cy + Math.sin(t * 0.013) * h * 0.12, w * 0.55, "60, 60, 90", 0.16],
-    [cx + Math.cos(t * 0.008 + 2) * w * 0.22, cy + Math.sin(t * 0.011 + 1) * h * 0.18, w * 0.45, "90, 60, 110", 0.10],
-    [cx, cy, w * 0.30, "170, 170, 200", 0.13],
-    [cx, cy, w * 0.07, "235, 235, 245", 0.18],   // bright core
+    [cx + Math.cos(t * 0.010) * w * 0.18, cy + Math.sin(t * 0.013) * h * 0.12, w * 0.55, c0, 0.18],
+    [cx + Math.cos(t * 0.008 + 2) * w * 0.22, cy + Math.sin(t * 0.011 + 1) * h * 0.18, w * 0.45, c1, 0.12],
+    [cx, cy, w * 0.30, c2, 0.13],
+    [cx, cy, w * 0.07, c3, 0.18],   // bright core
   ];
-  for (const [x, y, rad, rgb, a] of clouds) {
+  for (const [x, y, rad, color, a] of clouds) {
     const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
-    g.addColorStop(0, `rgba(${rgb}, ${a})`);
-    g.addColorStop(1, `rgba(${rgb}, 0)`);
+    g.addColorStop(0, `rgba(${color}, ${a})`);
+    g.addColorStop(1, `rgba(${color}, 0)`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
   }
@@ -162,13 +213,14 @@ function draw(now) {
 
   // The galaxy, tilted, with inner stars orbiting faster than outer ones.
   const tilt = 0.55, spin = -0.35;
+  const tints = palette.stars.map((c) => `rgb(${rgb(c)})`);
   for (const s of stars) {
     const a = s.a + t * (0.02 + 0.3 / (s.r + 60));  // near-rigid spin keeps the arms intact
     const x0 = Math.cos(a) * s.r, y0 = Math.sin(a) * s.r * tilt;
     const x = cx + x0 * Math.cos(spin) - y0 * Math.sin(spin);
     const y = cy + x0 * Math.sin(spin) + y0 * Math.cos(spin);
     ctx.globalAlpha = s.alpha * (0.75 + 0.25 * Math.sin(t * 1.5 + s.twinkle));
-    ctx.fillStyle = `rgb(${s.color[0]}, ${s.color[1]}, ${s.color[2]})`;
+    ctx.fillStyle = tints[s.tint];
     ctx.beginPath();
     ctx.arc(x, y, s.size, 0, Math.PI * 2);
     ctx.fill();

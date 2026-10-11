@@ -25,6 +25,13 @@
   color-scheme: dark;
 }
 
+@font-face {
+  font-family: "Outfit";
+  src: url("../fonts/outfit-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
@@ -268,9 +275,9 @@ td.wrap { white-space: normal; min-width: 180px; color: var(--muted); }
 .afk.visible { opacity: 1; }
 .afk canvas { position: absolute; inset: 0; display: block; }
 .afk-content { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; text-shadow: 0 2px 30px rgba(0, 0, 0, .8); }
-.afk-time { font-size: clamp(64px, 14vw, 168px); font-weight: 200; letter-spacing: -0.04em; line-height: 1; color: #f2f2f2; font-variant-numeric: tabular-nums; }
-.afk-date { margin-top: 14px; font-size: clamp(14px, 1.8vw, 20px); color: #a0a0a8; letter-spacing: .04em; }
-.afk-hello { margin-top: 34px; font-size: clamp(20px, 3vw, 34px); font-weight: 300; color: #d8d8de; letter-spacing: .02em; }
+.afk-time { font-family: "Outfit", var(--font); font-size: clamp(72px, 15vw, 184px); font-weight: 250; letter-spacing: -0.02em; line-height: 1; color: #f4f4f4; font-variant-numeric: tabular-nums; }
+.afk-date { font-family: "Outfit", var(--font); text-transform: uppercase; font-weight: 400; margin-top: 14px; font-size: clamp(14px, 1.8vw, 20px); color: #a0a0a8; letter-spacing: .18em; }
+.afk-hello { font-family: "Outfit", var(--font); margin-top: 34px; font-size: clamp(20px, 3vw, 34px); font-weight: 300; color: #d8d8de; letter-spacing: .02em; }
 .afk-hint { position: absolute; bottom: 26px; left: 0; right: 0; text-align: center; font-size: 12px; color: #55555c; pointer-events: none; }
 @media (max-width: 860px) { .demo .sidebar { height: calc(100vh - 32px); }
 .afk-btn { width: auto; } }

@@ -15,10 +15,12 @@ Definitions:
   * Trade P&L is shown separately; it is money earned on an account, not cash
     received, and never counts toward cash flow.
 """
-from flask import Blueprint, jsonify
+from datetime import date as date_cls
+
+from flask import Blueprint, jsonify, request
 
 from .db import get_db
-from .validation import from_cents
+from .validation import ValidationError, from_cents
 
 bp = Blueprint("stats", __name__)
 
@@ -111,6 +113,20 @@ def per_account(conn):
 def get_stats():
     conn = get_db()
     return jsonify({"summary": compute_summary(conn), "accounts": per_account(conn)})
+
+
+@bp.get("/api/today")
+def get_today():
+    """Recorded trade P&L for one day (default: today). Used by the AFK screen."""
+    day = request.args.get("date", "").strip()
+    try:
+        day = date_cls.fromisoformat(day).isoformat() if day else date_cls.today().isoformat()
+    except ValueError:
+        raise ValidationError({"date": "Use YYYY-MM-DD."})
+    row = get_db().execute(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(pnl_cents), 0) AS pnl FROM trades WHERE substr(traded_at, 1, 10) = ?",
+        (day,)).fetchone()
+    return jsonify({"date": day, "trades": row["n"], "pnl": from_cents(row["pnl"])})
 
 
 @bp.get("/api/dashboard")

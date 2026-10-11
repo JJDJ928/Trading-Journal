@@ -88,3 +88,14 @@ def test_closed_after_pass_still_counts_as_passed(client):
     s = client.get("/api/stats").json["summary"]
     assert s["evaluations_passed"] == 1 and s["evaluations_failed"] == 0
     assert s["pass_rate"] == 1.0
+
+
+def test_today_pnl_for_afk_screen(client):
+    acct = new_account(client)
+    for when, pnl in (("2026-03-02T09:00", 300), ("2026-03-02T14:30", -500), ("2026-03-01T10:00", 900)):
+        client.post("/api/trades", json={"account_id": acct["id"], "traded_at": when,
+                                         "result": "win" if pnl > 0 else "loss", "pnl": pnl})
+    day = client.get("/api/today?date=2026-03-02").json
+    assert day == {"date": "2026-03-02", "trades": 2, "pnl": -200}
+    assert client.get("/api/today?date=2026-03-03").json["pnl"] == 0
+    assert client.get("/api/today?date=nope").status_code == 400
