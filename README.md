@@ -97,6 +97,7 @@ yellow **DEMO DATA** banner. It never reads or writes `./data/`.
 | Record a payout | Funded account → **+ Record payout**, or the **Payouts** page |
 | Back up / restore | **Backup & Restore** in the sidebar |
 | Review a trade with the coach | **Review with coach** on any trade, or the **Coach** page |
+| AFK screen (clock + galaxy) | **AFK mode** in the sidebar; also opens after 5 minutes idle (`static/js/afk.js`) |
 
 `Ctrl+Enter` saves any open form. `Esc` closes it.
 

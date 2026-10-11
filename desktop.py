@@ -96,7 +96,7 @@ def main():
     bridge = Bridge(app)
     webview.settings["ALLOW_DOWNLOADS"] = True
     window = webview.create_window(APP_NAME, url, js_api=bridge, width=1360, height=900,
-                                   min_size=(900, 600), background_color="#0b0f14")
+                                   min_size=(900, 600), background_color="#0a0a0a")
     bridge._window = window
     # private_mode=False keeps small UI preferences (last account used, etc.) between launches.
     webview.start(private_mode=False, storage_path=os.path.join(data_dir, "webview"))

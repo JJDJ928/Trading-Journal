@@ -1,14 +1,16 @@
 :root {
-  --bg: #0b0f14;
-  --panel: #11161d;
-  --panel-2: #161c25;
-  --border: #222b37;
-  --border-strong: #2f3a49;
-  --text: #e6edf3;
-  --muted: #8b98a8;
-  --faint: #5c6878;
-  --accent: #4f8cff;
-  --accent-soft: rgba(79, 140, 255, 0.14);
+  --bg: #0a0a0a;
+  --panel: #131313;
+  --panel-2: #1a1a1a;
+  --border: #242424;
+  --border-strong: #333333;
+  --text: #ececec;
+  --muted: #9a9a9a;
+  --faint: #666666;
+  --accent: #d4d4d4;              /* neutral highlight (links, focus) */
+  --accent-strong: #e8e8e8;       /* primary buttons */
+  --accent-line: rgba(255, 255, 255, 0.22);
+  --accent-soft: rgba(255, 255, 255, 0.08);
   --green: #34d399;
   --green-soft: rgba(52, 211, 153, 0.13);
   --red: #f87171;
@@ -89,7 +91,7 @@ h3 { font-size: 13px; margin: 0 0 8px; font-weight: 600; color: var(--muted); te
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--panel-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 8px; padding: 7px 13px; font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .btn:hover { border-color: var(--faint); text-decoration: none; }
 .btn:disabled { opacity: .55; cursor: default; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary { background: var(--accent-strong); border-color: var(--accent-strong); color: #0a0a0a; }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.success { background: var(--green-soft); border-color: rgba(52, 211, 153, .4); color: var(--green); }
 .btn.danger { background: transparent; border-color: rgba(248, 113, 113, .4); color: var(--red); }
@@ -221,7 +223,7 @@ td.wrap { white-space: normal; min-width: 180px; color: var(--muted); }
 }
 
 /* ---------- welcome screen */
-.welcome { position: fixed; inset: 0; z-index: 80; background: radial-gradient(1200px 600px at 50% 30%, #13202f 0%, var(--bg) 70%); display: flex; align-items: center; justify-content: center; padding: 24px; animation: fade-in .35s ease; }
+.welcome { position: fixed; inset: 0; z-index: 80; background: radial-gradient(1200px 600px at 50% 30%, #1c1c1c 0%, var(--bg) 70%); display: flex; align-items: center; justify-content: center; padding: 24px; animation: fade-in .35s ease; }
 .welcome.leaving { animation: fade-out .3s ease forwards; }
 .welcome-card { text-align: center; max-width: 560px; width: 100%; }
 .welcome-card svg { color: var(--green); }
@@ -243,11 +245,11 @@ td.wrap { white-space: normal; min-width: 180px; color: var(--muted); }
 .thread-list { display: flex; flex-direction: column; gap: 4px; }
 .thread-list a { display: block; padding: 9px 11px; border-radius: 8px; color: var(--text); border: 1px solid transparent; }
 .thread-list a:hover { background: var(--panel-2); text-decoration: none; }
-.thread-list a.active { background: var(--accent-soft); border-color: rgba(79, 140, 255, .35); }
+.thread-list a.active { background: var(--accent-soft); border-color: var(--accent-line); }
 .thread-list a small { display: block; color: var(--faint); font-size: 11.5px; }
 .chat { display: flex; flex-direction: column; gap: 12px; }
 .msg { max-width: 85%; padding: 12px 14px; border-radius: 12px; line-height: 1.55; overflow-wrap: anywhere; }
-.msg.user { align-self: flex-end; background: var(--accent-soft); border: 1px solid rgba(79, 140, 255, .3); white-space: pre-wrap; }
+.msg.user { align-self: flex-end; background: var(--accent-soft); border: 1px solid var(--accent-line); white-space: pre-wrap; }
 .msg.assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); }
 .msg.assistant p { margin: 0 0 8px; } .msg.assistant p:last-child { margin-bottom: 0; }
 .msg.assistant ul, .msg.assistant ol { margin: 4px 0 8px; padding-left: 20px; }
@@ -258,3 +260,17 @@ td.wrap { white-space: normal; min-width: 180px; color: var(--muted); }
 .composer { display: flex; gap: 8px; margin-top: 14px; align-items: flex-end; }
 .composer textarea { min-height: 46px; }
 .privacy { font-size: 12px; color: var(--faint); margin-top: 8px; }
+
+/* ---------- AFK screen */
+.demo .sidebar { height: calc(100vh - 32px); }
+.afk-btn { justify-content: flex-start; padding: 8px 10px; margin-top: 2px; font-weight: 500; }
+.afk { position: fixed; inset: 0; z-index: 90; background: #030304; opacity: 0; transition: opacity .6s ease; cursor: none; }
+.afk.visible { opacity: 1; }
+.afk canvas { position: absolute; inset: 0; display: block; }
+.afk-content { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; text-shadow: 0 2px 30px rgba(0, 0, 0, .8); }
+.afk-time { font-size: clamp(64px, 14vw, 168px); font-weight: 200; letter-spacing: -0.04em; line-height: 1; color: #f2f2f2; font-variant-numeric: tabular-nums; }
+.afk-date { margin-top: 14px; font-size: clamp(14px, 1.8vw, 20px); color: #a0a0a8; letter-spacing: .04em; }
+.afk-hello { margin-top: 34px; font-size: clamp(20px, 3vw, 34px); font-weight: 300; color: #d8d8de; letter-spacing: .02em; }
+.afk-hint { position: absolute; bottom: 26px; left: 0; right: 0; text-align: center; font-size: 12px; color: #55555c; pointer-events: none; }
+@media (max-width: 860px) { .demo .sidebar { height: calc(100vh - 32px); }
+.afk-btn { width: auto; } }

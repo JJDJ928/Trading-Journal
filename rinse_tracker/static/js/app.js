@@ -1,5 +1,6 @@
 // Hash router. Each page renders into a fresh element; any save re-renders the
 // current page (via "data-changed") so every number stays current.
+import { initAfk, openAfk } from "./afk.js";
 import { api } from "./api.js";
 import { openTradeForm } from "./forms.js";
 import { esc, isModalOpen, money } from "./ui.js";
@@ -111,6 +112,9 @@ async function showWelcome(meta) {
 
 api.get("/api/meta").then((m) => {
   document.getElementById("demo-banner").hidden = !m.demo;
+  document.body.classList.toggle("demo", m.demo);
   showWelcome(m);
+  initAfk({ name: m.user_name, canOpen: () => document.getElementById("welcome").hidden });
 }).catch(() => {});
+document.querySelector("[data-quick=afk]").addEventListener("click", () => openAfk());
 render();
