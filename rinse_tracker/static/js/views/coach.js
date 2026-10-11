@@ -1,6 +1,6 @@
 // AI coach: conversations with Claude about your journal and individual trades.
 import { api } from "../api.js";
-import { confirmDialog, esc, fmtDateTime, toast } from "../ui.js";
+import { confirmDialog, esc, fmtDateTime, formData, openModal, toast } from "../ui.js";
 
 const SUGGESTIONS = [
   "What patterns do you see in my trading?",
@@ -54,9 +54,9 @@ export async function render(el, threadId = null, reviewTradeId = null) {
 
   el.innerHTML = `
     <div class="page-head"><h1>Coach</h1>
-      <div class="actions">${status.configured ? `<a class="btn" href="#/coach">+ New conversation</a>` : ""}
-        <button class="btn ghost sm" data-act="settings">API key</button></div></div>
-    ${status.configured ? `
+      <div class="actions">${status.ready ? `<a class="btn" href="#/coach">+ New conversation</a>` : ""}
+        <button class="btn ghost sm" data-act="settings">Coach settings</button></div></div>
+    ${status.ready ? `
       <div class="coach">
         <aside class="panel" style="padding:10px">
           <div class="thread-list">${threads.length ? threads.map((t) => `
@@ -70,12 +70,14 @@ export async function render(el, threadId = null, reviewTradeId = null) {
             <textarea name="message" rows="2" placeholder="${thread ? "Reply to your coach…" : "Ask your coach anything about your trading…"}"></textarea>
             <button class="btn primary" type="submit">Send</button>
           </form>
-          <p class="privacy">The coach runs on Claude. Your journal snapshot and the screenshots of a reviewed trade are sent to the Anthropic API; nothing else leaves your computer. Ctrl+Enter to send.</p>
+          <p class="privacy">${status.provider === "local"
+            ? `Free local AI (${esc(status.local.model)}) running on this computer. Nothing leaves your computer.`
+            : "Running on Claude. Your journal snapshot and a reviewed trade's screenshots are sent to the Anthropic API."} Ctrl+Enter to send.</p>
         </section>
-      </div>` : setupCard()}`;
+      </div>` : status.provider === "local" ? setupLocal(status.local) : setupClaude()}`;
 
-  el.querySelector("[data-act=settings]").addEventListener("click", () => openKeySettings(status));
-  if (!status.configured) return bindSetup(el);
+  el.querySelector("[data-act=settings]").addEventListener("click", () => openSettings(status));
+  if (!status.ready) return status.provider === "local" ? bindLocalSetup(el, status.local) : bindSetup(el);
 
   const chat = el.querySelector(".chat"), form = el.querySelector(".composer"), box = form.elements.message;
   const scrollDown = () => chat.lastElementChild?.scrollIntoView({ block: "end" });
@@ -84,7 +86,7 @@ export async function render(el, threadId = null, reviewTradeId = null) {
     form.querySelector("button").disabled = box.disabled = true;
     if (!thread) chat.innerHTML = "";
     if (text) chat.insertAdjacentHTML("beforeend", bubble({ role: "user", text }));
-    chat.insertAdjacentHTML("beforeend", `<div class="msg assistant pending"><div class="who">Coach</div>${tradeId ? "Looking at your trade and screenshots…" : "Thinking…"}</div>`);
+    chat.insertAdjacentHTML("beforeend", `<div class="msg assistant pending"><div class="who">Coach</div>${tradeId ? "Looking at your trade and screenshots…" : "Thinking…"}${status.provider === "local" ? " The local AI can take a minute." : ""}</div>`);
     scrollDown();
     try {
       const result = thread
@@ -130,7 +132,80 @@ function intro() {
   </div>`;
 }
 
-function setupCard() {
+function setupLocal(local) {
+  const pull = local.pull;
+  const pct = pull && pull.total ? Math.round((pull.completed / pull.total) * 100) : 0;
+  const downloading = pull && !pull.done;
+  return `<div class="panel" style="max-width:660px">
+    <h2>Set up your free coach</h2>
+    <p class="muted">The coach runs a free AI model on your own computer with <strong>Ollama</strong>. No account, no cost,
+      and your trades never leave your computer.</p>
+    <ol class="setup-steps">
+      <li class="${local.running ? "done" : ""}"><strong>Install Ollama and open it.</strong>
+        ${local.running ? `<span class="pos">Running ✓</span>`
+          : `Download it free from <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a>, install it, and open it.`}</li>
+      <li class="${local.installed ? "done" : ""}"><strong>Download the coach model</strong> <span class="muted">(${esc(local.model)}, about 3 GB, one time only)</span>
+        ${downloading ? `<div class="progress"><div style="width:${pct}%"></div></div>
+          <div class="hint">${esc(pull.status || "Downloading")}${pull.total ? ` · ${pct}%` : ""}. You can keep using the app meanwhile.</div>`
+          : pull?.error ? `<div class="form-error" style="margin-top:8px">${esc(pull.error)}</div>` : ""}</li>
+    </ol>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${local.running && !local.installed && !downloading ? `<button class="btn primary" data-act="pull">Download coach model</button>` : ""}
+      <button class="btn" data-act="recheck">Check again</button>
+    </div>
+  </div>`;
+}
+
+function bindLocalSetup(el, local) {
+  el.querySelector("[data-act=recheck]").addEventListener("click", () => window.dispatchEvent(new Event("data-changed")));
+  el.querySelector("[data-act=pull]")?.addEventListener("click", async () => {
+    try { await api.post("/api/coach/local/pull"); } catch (err) { toast(err.message, "error"); }
+    window.dispatchEvent(new Event("data-changed"));
+  });
+  // While downloading, refresh the progress until the model is ready.
+  if (local.pull && !local.pull.done) {
+    setTimeout(() => { if (el.isConnected) window.dispatchEvent(new Event("data-changed")); }, 1500);
+  }
+}
+
+function openSettings(status) {
+  const isLocal = status.provider === "local";
+  const { form } = openModal({
+    title: "Coach settings",
+    body: `
+      <label class="field"><span>Coach engine</span>
+        <select name="provider">
+          <option value="local" ${isLocal ? "selected" : ""}>Free local AI (Ollama, runs on this computer)</option>
+          <option value="claude" ${!isLocal ? "selected" : ""}>Claude (smarter, needs an Anthropic API key, paid per use)</option>
+        </select></label>
+      <div data-show="local" style="margin-top:14px">
+        <label class="field"><span>Local model</span>
+          <input name="local_model" value="${esc(status.local.model)}" list="model-list">
+          <datalist id="model-list"><option value="gemma3:4b"><option value="gemma3:12b"><option value="qwen2.5vl:7b"></datalist>
+          <div class="hint">gemma3:4b works on most computers. gemma3:12b gives better reviews if you have 16 GB+ of memory.</div></label>
+      </div>
+      <div data-show="claude" style="margin-top:14px" class="muted small">
+        ${status.claude.configured ? `API key saved (${status.claude.source === "app" ? "in this app" : "from the environment"}).` : "After saving, paste your API key on the Coach page."}
+        ${status.claude.source === "app" ? `<div style="margin-top:8px"><button type="button" class="btn danger sm" data-act="remove-key">Remove saved API key</button></div>` : ""}
+      </div>`,
+    submitLabel: "Save",
+    onSubmit: async (f) => {
+      await api.put("/api/coach/settings", formData(f, ["provider", "local_model"]));
+      toast("Coach settings saved");
+      window.dispatchEvent(new Event("data-changed"));
+    },
+  });
+  const sync = () => form.querySelectorAll("[data-show]").forEach((d) => { d.hidden = d.dataset.show !== form.elements.provider.value; });
+  form.elements.provider.addEventListener("change", sync);
+  sync();
+  form.querySelector("[data-act=remove-key]")?.addEventListener("click", async () => {
+    await api.del("/api/coach/key");
+    toast("API key removed");
+    form.querySelector("[data-act=remove-key]").remove();
+  });
+}
+
+function setupClaude() {
   return `<div class="panel" style="max-width:640px">
     <h2>Set up your coach</h2>
     <p class="muted">The coach uses Claude through the Anthropic API, which needs an API key (usage is billed to your Anthropic account).</p>
@@ -155,15 +230,4 @@ function bindSetup(el) {
       window.dispatchEvent(new Event("data-changed"));
     } catch (err) { toast(err.fields?.api_key || err.message, "error"); }
   });
-}
-
-async function openKeySettings(status) {
-  if (status.source !== "app") {
-    toast(status.source === "environment" ? "Using the ANTHROPIC_API_KEY environment variable." : "Paste a key on this page to set up the coach.");
-    return;
-  }
-  if (!await confirmDialog({ title: "Remove saved API key?", message: "The coach will stop working until you add a key again. Conversations are kept.", confirmLabel: "Remove key" })) return;
-  await api.del("/api/coach/key");
-  toast("API key removed");
-  window.dispatchEvent(new Event("data-changed"));
 }

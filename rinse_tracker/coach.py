@@ -1,8 +1,11 @@
-"""AI trading coach, powered by Claude through the Anthropic API.
+"""AI trading coach.
 
-This is the only part of the app that sends data off your computer: when you
-start or continue a coach conversation, the trade data in that conversation
-(and the screenshots of a reviewed trade) go to the Anthropic API.
+Two engines, chosen on the Coach page (stored in <data dir>/coach_settings.json):
+  * "local" (default): a free AI model running on this computer through Ollama
+    (coach_local.py). Nothing leaves the computer.
+  * "claude": Claude through the Anthropic API, using your API key. The trade
+    data in a conversation (and a reviewed trade's screenshots) is sent to the
+    Anthropic API; usage is billed to your Anthropic account.
 
 Conversations are append-only. The first user message freezes a snapshot of
 your stats and recent trades, and every message is stored exactly as it was
@@ -18,6 +21,7 @@ import anthropic
 from flask import Blueprint, current_app, jsonify, request
 
 from . import accounts as accounts_mod
+from . import coach_local
 from .db import get_db
 from .stats import compute_summary
 from .validation import Form, NotFound
@@ -30,6 +34,8 @@ MAX_IMAGES = 8
 MAX_IMAGE_BYTES = 5 * 1024 * 1024  # API limit for a base64 image
 RECENT_TRADES = 40
 KEY_FILE = "anthropic_api_key"     # in the data folder; never included in backups
+SETTINGS_FILE = "coach_settings.json"
+PROVIDERS = ("local", "claude")
 
 SYSTEM_PROMPT = """You are a personal trading coach for {name}, who trades prop-firm accounts \
 using a "rinse" system: buying evaluations, passing them, trading the funded accounts and \
@@ -51,7 +57,67 @@ as well as what didn't. End a review with one or two concrete things to work on.
 - You are not a financial adviser and don't give signals or tell them what to trade next."""
 
 
-# ---------------------------------------------------------------- client
+# ---------------------------------------------------------------- settings
+
+def load_settings():
+    settings = {"provider": "local", "local_model": coach_local.DEFAULT_MODEL}
+    try:
+        with open(os.path.join(current_app.config["DATA_DIR"], SETTINGS_FILE)) as fh:
+            saved = json.load(fh)
+        if saved.get("provider") in PROVIDERS:
+            settings["provider"] = saved["provider"]
+        if isinstance(saved.get("local_model"), str) and saved["local_model"].strip():
+            settings["local_model"] = saved["local_model"].strip()
+    except (FileNotFoundError, ValueError):
+        pass
+    return settings
+
+
+def save_settings(settings):
+    with open(os.path.join(current_app.config["DATA_DIR"], SETTINGS_FILE), "w") as fh:
+        json.dump(settings, fh, indent=2)
+
+
+def _ollama_url():
+    return current_app.config.get("OLLAMA_URL", coach_local.DEFAULT_URL)
+
+
+def _ollama_opener():
+    return current_app.config.get("OLLAMA_OPENER")  # tests inject a fake Ollama here
+
+
+def _call(messages):
+    """Send the conversation to the chosen engine; return assistant content blocks."""
+    if load_settings()["provider"] == "claude":
+        return _call_claude(messages)
+    return _call_local(messages)
+
+
+def _system_prompt():
+    return SYSTEM_PROMPT.format(name=current_app.config.get("USER_NAME", "the trader"))
+
+
+def _call_local(messages):
+    simple = []
+    for m in messages:
+        blocks = m["content"]
+        simple.append({
+            "role": m["role"],
+            "text": "\n\n".join(b["text"] for b in blocks if b.get("type") == "text" and b.get("text")),
+            "images": [b["source"]["data"] for b in blocks if b.get("type") == "image" and "source" in b]
+            if m["role"] == "user" else [],
+        })
+    try:
+        reply = coach_local.chat(_ollama_url(), load_settings()["local_model"], _system_prompt(),
+                                 simple, opener=_ollama_opener())
+    except coach_local.LocalError as err:
+        raise CoachError(str(err))
+    if not reply:
+        raise CoachError("The coach returned an empty reply. Try again.")
+    return [{"type": "text", "text": reply}]
+
+
+# ---------------------------------------------------------------- claude
 
 def _key_path():
     return os.path.join(current_app.config["DATA_DIR"], KEY_FILE)
@@ -81,10 +147,10 @@ def make_client():
     return anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
 
 
-def _call(messages):
+def _call_claude(messages):
     """Send the conversation to Claude and return the assistant content blocks."""
     client = make_client()
-    system = SYSTEM_PROMPT.format(name=current_app.config.get("USER_NAME", "the trader"))
+    system = _system_prompt()
     params = dict(
         model=MODEL,
         max_tokens=MAX_TOKENS,
@@ -337,7 +403,38 @@ def delete_thread(thread_id):
 
 @bp.get("/api/coach/status")
 def status():
-    return jsonify({"configured": key_source() is not None, "source": key_source(), "model": MODEL})
+    settings = load_settings()
+    local = coach_local.status(_ollama_url(), settings["local_model"], opener=_ollama_opener())
+    claude = {"configured": key_source() is not None, "source": key_source(), "model": MODEL}
+    ready = (local["running"] and local["installed"]) if settings["provider"] == "local" \
+        else claude["configured"]
+    return jsonify({"provider": settings["provider"], "ready": ready, "local": local, "claude": claude})
+
+
+@bp.put("/api/coach/settings")
+def put_settings():
+    form = Form(request.get_json(silent=True))
+    settings = load_settings()
+    provider = form.choice("provider", PROVIDERS)
+    model = form.text("local_model", max_len=100, label="Model")
+    if model and not all(c.isalnum() or c in ".:-_/" for c in model):
+        form.error("local_model", "Use a model name like gemma3:4b.")
+    form.check()
+    settings["provider"] = provider or settings["provider"]
+    settings["local_model"] = model or settings["local_model"]
+    save_settings(settings)
+    return status()
+
+
+@bp.post("/api/coach/local/pull")
+def pull_model():
+    """Start downloading the local coach model through Ollama."""
+    model = load_settings()["local_model"]
+    if not coach_local.status(_ollama_url(), model, opener=_ollama_opener())["running"]:
+        raise CoachError("Ollama isn't running. Install it from ollama.com and open it first.")
+    if not _ollama_opener():
+        coach_local.start_pull(_ollama_url(), model)
+    return status()
 
 
 @bp.post("/api/coach/key")

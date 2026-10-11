@@ -44,7 +44,10 @@ def fake():
 def client(data_dir, fake):
     app = create_app(str(data_dir))
     app.config["COACH_CLIENT_FACTORY"] = lambda: fake
-    return app.test_client()
+    app.config["OLLAMA_OPENER"] = FakeOllama()
+    client = app.test_client()
+    client.put("/api/coach/settings", json={"provider": "claude"})
+    return client
 
 
 def test_review_trade_sends_context_and_screenshots(client, fake, png):
@@ -106,14 +109,82 @@ def test_validation_and_delete(client, fake):
     assert client.get("/api/coach/threads").json == []
 
 
+class FakeOllama:
+    def __init__(self, models=("gemma3:4b",), running=True):
+        self.models, self.running, self.calls = list(models), running, []
+        self.reply = "Local coach says: patience paid off."
+
+    def __call__(self, path, payload):
+        if not self.running:
+            raise ConnectionError("refused")
+        if path == "/api/tags":
+            return {"models": [{"name": m} for m in self.models]}
+        if path == "/api/chat":
+            self.calls.append(payload)
+            if payload["model"] not in self.models:
+                from rinse_tracker.coach_local import LocalError
+                raise LocalError(f"model '{payload['model']}' not found")
+            return {"message": {"role": "assistant", "content": "<think>hmm</think>" + self.reply}}
+        raise AssertionError(path)
+
+
+@pytest.fixture
+def local_client(data_dir):
+    app = create_app(str(data_dir))
+    ollama = FakeOllama()
+    app.config["OLLAMA_OPENER"] = ollama
+    return app.test_client(), ollama
+
+
+def test_local_coach_is_default_and_reviews_with_images(local_client, png):
+    client, ollama = local_client
+    st = client.get("/api/coach/status").json
+    assert st["provider"] == "local" and st["ready"] is True
+    acct = new_account(client)
+    trade = post_trade(client, acct["id"], files=[png("a.png")], summary="Waited for the retest").json
+    thread = client.post("/api/coach/threads", json={"trade_id": trade["id"]}).json
+    assert thread["messages"][-1]["text"] == "Local coach says: patience paid off."   # <think> removed
+    sent = ollama.calls[0]["messages"]
+    assert sent[0]["role"] == "system" and "Jordi" in sent[0]["content"]
+    assert "Waited for the retest" in sent[1]["content"] and len(sent[1]["images"]) == 1
+    client.post(f"/api/coach/threads/{thread['id']}/messages", json={"message": "And my stop?"})
+    follow = ollama.calls[1]["messages"]
+    assert [m["role"] for m in follow] == ["system", "user", "assistant", "user"]
+    assert follow[2]["content"] == "Local coach says: patience paid off."
+
+
+def test_local_coach_not_running_or_model_missing(local_client):
+    client, ollama = local_client
+    ollama.running = False
+    st = client.get("/api/coach/status").json
+    assert st["ready"] is False and st["local"]["running"] is False
+    resp = client.post("/api/coach/threads", json={})
+    assert resp.status_code == 502 and "Ollama" in resp.json["error"]
+    ollama.running, ollama.models = True, []
+    assert client.get("/api/coach/status").json["local"]["installed"] is False
+    resp = client.post("/api/coach/threads", json={})
+    assert resp.status_code == 502 and "isn't downloaded" in resp.json["error"]
+    assert client.get("/api/coach/threads").json == []
+
+
+def test_coach_settings_validation(local_client):
+    client, _ = local_client
+    assert client.put("/api/coach/settings", json={"provider": "gpt"}).status_code == 400
+    assert client.put("/api/coach/settings", json={"local_model": "bad model!"}).status_code == 400
+    st = client.put("/api/coach/settings", json={"local_model": "gemma3:12b"}).json
+    assert st["local"]["model"] == "gemma3:12b" and st["local"]["installed"] is False
+
+
 def test_api_key_saved_outside_backup(client, data_dir, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    assert client.get("/api/coach/status").json["configured"] is False
+    assert client.get("/api/coach/status").json["claude"]["configured"] is False
+    assert client.get("/api/coach/status").json["ready"] is False
     assert client.post("/api/coach/key", json={"api_key": "nope"}).status_code == 400
     assert client.post("/api/coach/key", json={"api_key": "sk-ant-test"}).status_code == 200
-    assert client.get("/api/coach/status").json["source"] == "app"
+    assert client.get("/api/coach/status").json["claude"]["source"] == "app"
+    assert client.get("/api/coach/status").json["ready"] is True
     import io, zipfile
     names = zipfile.ZipFile(io.BytesIO(client.get("/api/backup").data)).namelist()
     assert not any("api_key" in n for n in names)
     client.delete("/api/coach/key")
-    assert client.get("/api/coach/status").json["configured"] is False
+    assert client.get("/api/coach/status").json["claude"]["configured"] is False

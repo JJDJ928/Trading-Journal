@@ -103,19 +103,23 @@ yellow **DEMO DATA** banner. It never reads or writes `./data/`.
 
 ## AI coach
 
-The **Coach** page is a personal trading coach powered by Claude (model
-`claude-opus-5-5`). Press **Review with coach** on any trade to go through it
-together, screenshots included, or ask general questions about your journal.
+The **Coach** page reviews your trades with you. Press **Review with coach** on any trade to
+go through it together (screenshots included), or ask general questions about your journal.
 Conversations are saved so you can come back to them.
 
-Setup: create an API key at [console.anthropic.com](https://console.anthropic.com/settings/keys)
-and paste it on the Coach page (it's stored in `data/anthropic_api_key`, never in
-backups), or set the `ANTHROPIC_API_KEY` environment variable. API usage is billed to
-your Anthropic account.
+**Free local AI (default).** The coach runs an AI model on your own computer with
+[Ollama](https://ollama.com/download): no account, no cost, and nothing leaves your computer.
+1. Install Ollama and open it.
+2. On the Coach page, click **Download coach model** (`gemma3:4b`, about 3 GB, one time).
 
-Privacy: this is the only feature that sends data off your computer. Starting a
-conversation sends a snapshot of your stats, accounts and recent trades (and, for a
-trade review, that trade's screenshots) to the Anthropic API. Everything else stays local.
+On computers with 16 GB+ of memory, `gemma3:12b` gives better reviews (Coach settings →
+Local model). Replies can take up to a minute on older machines.
+
+**Claude (optional).** For smarter reviews, switch the engine to Claude in **Coach settings**
+and paste an Anthropic API key from [console.anthropic.com](https://console.anthropic.com/settings/keys)
+(stored in `data/anthropic_api_key`, never in backups; usage is billed to your Anthropic
+account, roughly 5–10 cents per review). With Claude, the journal snapshot and a reviewed
+trade's screenshots are sent to the Anthropic API.
 
 ## How the numbers are calculated
 
@@ -163,7 +167,8 @@ rinse_tracker/
   payouts.py               payouts
   stats.py                 dashboard / rinse statistics calculations
   backup.py                backup and restore
-  coach.py                 AI coach (Anthropic API), conversations
+  coach.py                 AI coach: conversations, settings, Claude engine
+  coach_local.py           free local coach engine (Ollama)
   sample_data.py           demo seed (refuses to run outside demo mode)
   static/
     index.html, css/app.css
