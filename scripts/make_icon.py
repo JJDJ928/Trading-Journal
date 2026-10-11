@@ -1,4 +1,4 @@
-"""Draw the app icon and save it as .icns (macOS) or .png.  Usage: make_icon.py OUT"""
+"""Draw the app icon and save it as .icns (macOS), .ico (Windows) or .png.  Usage: make_icon.py OUT"""
 import sys
 
 from PIL import Image, ImageDraw
@@ -27,5 +27,7 @@ if __name__ == "__main__":
     img = draw()
     if out.endswith(".icns"):
         img.save(out, sizes=[(16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)])
+    elif out.endswith(".ico"):
+        img.save(out, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
     else:
         img.save(out)

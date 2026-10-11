@@ -3,9 +3,11 @@
     python desktop.py              run the desktop window from source
     python desktop.py --self-test  start the server, check it responds, exit (used by the build)
 
-The packaged macOS app (scripts/build_mac.sh) runs this file. Data lives in
-~/Library/Application Support/Rinse Tracker on macOS (override with RINSE_DATA_DIR).
+The packaged apps (scripts/build_mac.sh, scripts/build_windows.ps1) run this file.
+Data lives in ~/Library/Application Support/Rinse Tracker on macOS and
+%APPDATA%\\Rinse Tracker on Windows (override with RINSE_DATA_DIR).
 """
+import logging
 import os
 import sys
 import tempfile
@@ -24,6 +26,8 @@ APP_NAME = "Rinse Tracker"
 def default_data_dir():
     if sys.platform == "darwin":
         return os.path.expanduser(f"~/Library/Application Support/{APP_NAME}")
+    if sys.platform == "win32":
+        return os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), APP_NAME)
     return os.path.join(os.path.expanduser("~"), ".rinse-tracker")
 
 
@@ -58,6 +62,16 @@ class Bridge:
 
 
 def self_test():
+    # Exit codes (not output) report the result: a packaged windowed app has no console.
+    try:
+        _check_server()
+    except Exception as err:  # noqa: BLE001 - any failure means the build is broken
+        print(f"self-test FAILED: {err!r}")
+        sys.exit(1)
+    print("self-test OK")
+
+
+def _check_server():
     with tempfile.TemporaryDirectory() as tmp:
         server, url = start_server(create_app(tmp))
         try:
@@ -66,10 +80,10 @@ def self_test():
                     assert resp.status == 200, path
         finally:
             server.shutdown()
-    print("self-test OK")
 
 
 def main():
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)  # no per-request log lines
     if "--self-test" in sys.argv:
         return self_test()
 

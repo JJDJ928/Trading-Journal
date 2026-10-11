@@ -26,6 +26,19 @@ The build is for Apple Silicon Macs (M1 and newer). To build it yourself on a Ma
 `bash scripts/build_mac.sh` → `dist/Rinse-Tracker.dmg`. To run the window from source:
 `pip install -r requirements.txt -r requirements-desktop.txt && python3 desktop.py`.
 
+## Windows app
+
+1. On GitHub open **Actions → Build Windows app**, click the latest green run, and download
+   **Rinse-Tracker-Windows** under *Artifacts* (a zip containing `Rinse-Tracker-Setup.exe`).
+2. Run `Rinse-Tracker-Setup.exe`. It installs for your user only (no admin needed) and adds
+   Start-menu and optional desktop shortcuts.
+3. The installer isn't code-signed, so Windows SmartScreen may say "Windows protected your PC".
+   Click **More info → Run anyway**.
+
+Your data is kept in `%APPDATA%\Rinse Tracker`, so uninstalling or updating the app never
+deletes your records. To build it yourself on Windows: `./scripts/build_windows.ps1`
+→ `dist\Rinse-Tracker-Setup.exe`.
+
 ## Run it in your browser
 
 **One-time setup**
@@ -138,6 +151,7 @@ data to `data/backups/pre-restore-<time>.zip`, then swaps the backup in.
 run.py                     start the app in your browser (--demo, --port, --no-browser)
 desktop.py                 start the app in its own window (used by the Mac app)
 scripts/build_mac.sh       build "Rinse Tracker.app" and the .dmg (runs on a Mac / GitHub Actions)
+scripts/build_windows.ps1  build the Windows app and installer (installer/rinse-tracker.iss)
 rinse_tracker/
   __init__.py              app factory, error handling
   db.py                    schema + migrations (add future changes in migrate())

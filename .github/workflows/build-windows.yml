@@ -1,0 +1,37 @@
+name: Build Windows app
+
+on:
+  push:
+    paths:
+      - "desktop.py"
+      - "rinse_tracker/**"
+      - "scripts/**"
+      - "installer/**"
+      - "requirements*.txt"
+      - ".github/workflows/build-windows.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run tests
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pytest -q
+
+      - name: Build app and installer
+        shell: pwsh
+        run: ./scripts/build_windows.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rinse-Tracker-Windows
+          path: dist/Rinse-Tracker-Setup.exe
+          if-no-files-found: error
