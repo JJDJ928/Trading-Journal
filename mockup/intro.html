@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Rajdhani:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #000; --text: #fff; --muted: rgba(255,255,255,0.45); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; cursor: pointer; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .greet { position: fixed; left: 0; right: 0; bottom: 9vh; text-align: center; pointer-events: none; }
+  .hello { font: 600 clamp(26px, 3.4vw, 44px) "Orbitron", sans-serif; letter-spacing: 0.12em; text-shadow: 0 0 22px rgba(255,255,255,0.45); opacity: 0; animation: up 1.4s 0.6s ease-out forwards; }
+  .sub { margin-top: 14px; font: 400 18px "Rajdhani", sans-serif; letter-spacing: 0.08em; color: var(--muted); opacity: 0; animation: up 1.4s 1.4s ease-out forwards; }
+  .hint { margin-top: 34px; font: 400 11px "Orbitron", sans-serif; letter-spacing: 0.4em; color: rgba(255,255,255,0.32); opacity: 0; animation: up 1s 2.4s ease-out forwards, breathe 2.6s 3.4s ease-in-out infinite; }
+  @keyframes up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  @keyframes breathe { 50% { opacity: 0.12; } }
+  .fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.7s; }
+  body.leaving .fade { opacity: 1; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="greet">
+  <div class="hello"><span id="greeting">Good evening</span>, Jordi.</div>
+  <div class="sub">How may I help you today?</div>
+  <div class="hint">CLICK ANYWHERE TO CONTINUE</div>
+</div>
+<div class="fade"></div>
+<script>
+const c = document.getElementById("c"), x = c.getContext("2d");
+let W, H, R, dpr;
+function size() {
+  dpr = window.devicePixelRatio || 1;
+  W = innerWidth; H = innerHeight;
+  c.width = W * dpr; c.height = H * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  R = Math.min(W, H) * 0.24;
+}
+size(); addEventListener("resize", size);
+
+// greeting by time of day
+const h = new Date().getHours();
+document.getElementById("greeting").textContent = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+
+// particles: a shell of points plus a few dense "nuclei" clusters inside
+const pts = [];
+const rnd = (a, b) => a + Math.random() * (b - a);
+for (let i = 0; i < 480; i++) {               // outer shell
+  const u = Math.random() * 2 - 1, t = Math.random() * Math.PI * 2, r = rnd(0.86, 1.04);
+  const s = Math.sqrt(1 - u * u);
+  pts.push({ x: s * Math.cos(t) * r, y: u * r, z: s * Math.sin(t) * r, ph: Math.random() * 6 });
+}
+const nuclei = [[0, 0, 0], [0.35, -0.2, 0.15], [-0.3, 0.25, -0.2], [0.1, 0.35, 0.3]];
+nuclei.forEach(([cx, cy, cz]) => {           // inner clusters
+  for (let i = 0; i < 26; i++) pts.push({ x: cx + rnd(-.13, .13), y: cy + rnd(-.13, .13), z: cz + rnd(-.13, .13), ph: Math.random() * 6 });
+});
+
+// electron orbits
+const orbits = [
+  { tiltX: 1.2, tiltZ: 0.3, speed: 0.9, r: 1.28 },
+  { tiltX: -0.6, tiltZ: 1.1, speed: -0.7, r: 1.36 },
+  { tiltX: 0.2, tiltZ: -1.0, speed: 1.15, r: 1.22 },
+];
+
+function rot(p, ay, ax) {
+  let { x: px, y: py, z: pz } = p;
+  const cy = Math.cos(ay), sy = Math.sin(ay);
+  [px, pz] = [px * cy - pz * sy, px * sy + pz * cy];
+  const cx = Math.cos(ax), sx = Math.sin(ax);
+  [py, pz] = [py * cx - pz * sx, py * sx + pz * cx];
+  return { x: px, y: py, z: pz };
+}
+function orbitPoint(o, a) {
+  let p = { x: Math.cos(a) * o.r, y: 0, z: Math.sin(a) * o.r };
+  // tilt the orbit plane
+  let { x: px, y: py, z: pz } = p;
+  [py, pz] = [py * Math.cos(o.tiltX) - pz * Math.sin(o.tiltX), py * Math.sin(o.tiltX) + pz * Math.cos(o.tiltX)];
+  [px, py] = [px * Math.cos(o.tiltZ) - py * Math.sin(o.tiltZ), px * Math.sin(o.tiltZ) + py * Math.cos(o.tiltZ)];
+  return { x: px, y: py, z: pz };
+}
+
+let mx = 0, my = 0;
+addEventListener("mousemove", (e) => { mx = (e.clientX / W - 0.5); my = (e.clientY / H - 0.5); });
+
+function frame(t) {
+  t /= 1000;
+  x.fillStyle = "#000"; x.fillRect(0, 0, W, H);
+  const cxs = W / 2, cys = H * 0.4;
+  const breathe = 1 + Math.sin(t * 1.4) * 0.025;
+  const ay = t * 0.18 + mx * 0.6, ax = 0.25 + my * 0.4;
+  const persp = 2.6;
+
+  // soft glow behind
+  const g = x.createRadialGradient(cxs, cys, 0, cxs, cys, R * 1.5);
+  g.addColorStop(0, "rgba(255,255,255,0.08)"); g.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+
+  const P = pts.map((p) => {
+    const j = 0.012 * Math.sin(t * 2 + p.ph);
+    const q = rot({ x: p.x * (breathe + j), y: p.y * (breathe + j), z: p.z * (breathe + j) }, ay, ax);
+    const k = persp / (persp + q.z);
+    return { sx: cxs + q.x * R * k, sy: cys + q.y * R * k, z: q.z, k };
+  });
+
+  // connecting lines (plexus)
+  const maxD = R * 0.25, maxD2 = maxD * maxD;
+  x.lineWidth = 0.6;
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i];
+    for (let j = i + 1; j < P.length; j++) {
+      const b = P[j], dx = a.sx - b.sx, dy = a.sy - b.sy, d2 = dx * dx + dy * dy;
+      if (d2 < maxD2) {
+        const depth = (2 - (a.z + b.z) / 2) / 3;
+        x.strokeStyle = `rgba(255,255,255,${(1 - d2 / maxD2) * 0.38 * depth})`;
+        x.beginPath(); x.moveTo(a.sx, a.sy); x.lineTo(b.sx, b.sy); x.stroke();
+      }
+    }
+  }
+  // points
+  for (const p of P) {
+    const depth = (2 - p.z) / 3;
+    x.fillStyle = `rgba(255,255,255,${0.35 + depth * 0.65})`;
+    x.beginPath(); x.arc(p.sx, p.sy, 1.1 + depth * 1.3, 0, 7); x.fill();
+  }
+
+  // electron orbits
+  orbits.forEach((o, i) => {
+    x.strokeStyle = "rgba(255,255,255,0.18)"; x.lineWidth = 1;
+    x.beginPath();
+    for (let s = 0; s <= 120; s++) {
+      const q = rot(orbitPoint(o, (s / 120) * Math.PI * 2), ay, ax), k = persp / (persp + q.z);
+      const px = cxs + q.x * R * k, py = cys + q.y * R * k;
+      s ? x.lineTo(px, py) : x.moveTo(px, py);
+    }
+    x.stroke();
+    const q = rot(orbitPoint(o, t * o.speed + i * 2), ay, ax), k = persp / (persp + q.z);
+    const ex = cxs + q.x * R * k, ey = cys + q.y * R * k;
+    const eg = x.createRadialGradient(ex, ey, 0, ex, ey, 16);
+    eg.addColorStop(0, "rgba(255,255,255,1)"); eg.addColorStop(0.25, "rgba(255,255,255,0.6)"); eg.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = eg; x.beginPath(); x.arc(ex, ey, 16, 0, 7); x.fill();
+  });
+
+  // bright core
+  const cg = x.createRadialGradient(cxs, cys, 0, cxs, cys, R * 0.32);
+  cg.addColorStop(0, "rgba(255,255,255,0.55)"); cg.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = cg; x.beginPath(); x.arc(cxs, cys, R * 0.32, 0, 7); x.fill();
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// click anywhere -> dashboard
+addEventListener("click", () => {
+  document.body.classList.add("leaving");
+  setTimeout(() => (location.href = "dashboard.html"), 700);
+});
+</script>
+</body>
+</html>

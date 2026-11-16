@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Jarvis Trading Dashboard</title>
+<title>Trading Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -94,7 +94,7 @@ body::after {
 .col { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 .col > .panel { flex: 1; }
 
-/* ---------- jarvis core ---------- */
+/* ---------- ai core ---------- */
 .core { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .core .panel-free { position: absolute; inset: 0; border: 1px solid var(--line); background: radial-gradient(circle at 50% 42%, rgba(0, 180, 255, 0.12), transparent 60%); clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px)); }
 .reactor { position: relative; width: 330px; height: 330px; margin-top: 4px; }
@@ -167,7 +167,7 @@ body::after {
 
   <div class="main">
     <header class="top">
-      <div class="title">J.A.R.V.I.S.<small>TRADING INTELLIGENCE // v4.2</small></div>
+      <div class="title">TRADING TERMINAL<small>// v4.2</small></div>
       <div class="ticker">
         <span><b>NQ</b><em class="up">21,384.25 ▲ 0.84%</em></span>
         <span><b>ES</b><em class="up">6,042.50 ▲ 0.41%</em></span>
@@ -232,7 +232,7 @@ body::after {
         </div>
       </div>
 
-      <!-- CENTER : JARVIS -->
+      <!-- CENTER : AI -->
       <div class="core">
         <div class="panel-free"></div>
         <div class="reactor">
@@ -269,7 +269,7 @@ body::after {
               <circle cx="165" cy="165" r="56" fill="none" stroke="#e8feff" stroke-width="1.5" filter="url(#bigglow)"/>
             </g>
           </svg>
-          <div class="label">JARVIS</div>
+          <div class="label"></div>
         </div>
 
         <div class="greet">
@@ -277,7 +277,7 @@ body::after {
           <div class="line">Markets are open and all six funded accounts are online. You're up <em>+$1,240</em> today — 3 trades, all inside your plan. Shall I pull up the NQ setup you flagged?</div>
           <div class="wave" id="wave"></div>
         </div>
-        <div class="cmd"><span style="color:var(--cyan)">&gt;</span> Ask Jarvis anything<span class="caret"></span><span class="mic">◉ VOICE</span></div>
+        <div class="cmd"><span style="color:var(--cyan)">&gt;</span> Ask anything<span class="caret"></span><span class="mic">◉ VOICE</span></div>
       </div>
 
       <!-- RIGHT -->
@@ -309,7 +309,7 @@ body::after {
           <div class="heat" id="heat"></div>
         </div>
         <div class="panel">
-          <div class="ph">JARVIS LOG <span class="tag">STREAM</span></div>
+          <div class="ph">ACTIVITY LOG <span class="tag">STREAM</span></div>
           <div class="log">
             <div><b>[13:28]</b> Trade logged · NQ long · <span class="ok">+$390</span></div>
             <div><b>[12:00]</b> Lunch window — volatility dropping</div>
