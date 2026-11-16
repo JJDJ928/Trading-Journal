@@ -4,193 +4,55 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading Dashboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="hud.css">
-
 </head>
-<body>
-<div class="app">
-  <!-- side rail -->
-  <aside class="rail">
-    <svg class="logo" viewBox="0 0 48 48" fill="none" stroke="#ffffff" stroke-width="1.6">
-      <circle cx="24" cy="24" r="21" opacity=".5"/><circle cx="24" cy="24" r="14"/><circle cx="24" cy="24" r="6" fill="#ffffff" fill-opacity=".35"/>
-      <path d="M24 3v7M24 38v7M3 24h7M38 24h7" />
-    </svg>
-    <a class="on" href="dashboard.html" title="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>HOME</span></a>
-    <a href="trades.html" title="Trades"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h12l4 4v12H4z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg><span>TRADES</span></a>
-    <a href="accounts.html" title="Accounts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="1"/><path d="M3 10h18M7 15h4"/><path d="M7 6V4h10v2"/></svg><span>ACCOUNTS</span></a>
-    <div class="spacer"></div>
-    <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg></a>
-  </aside>
-
-  <div class="main">
-    <header class="top">
-      <div class="title">TRADING TERMINAL<small>// v4.2</small></div>
-      <div class="ticker">
-        <span><b>NQ</b><em class="up">21,384.25 ▲ 0.84%</em></span>
-        <span><b>ES</b><em class="up">6,042.50 ▲ 0.41%</em></span>
-        <span><b>YM</b><em class="dn">43,912 ▼ 0.12%</em></span>
-        <span><b>GC</b><em class="up">2,688.4 ▲ 0.27%</em></span>
-        <span><b>CL</b><em class="dn">68.91 ▼ 1.03%</em></span>
-        <span><b>BTC</b><em class="up">91,240 ▲ 2.18%</em></span>
-        <span><b>DXY</b><em class="dn">106.12 ▼ 0.09%</em></span>
-        <span><b>VIX</b><em class="dn">14.82 ▼ 3.4%</em></span>
-      </div>
-      <div style="font-family:var(--mono);font-size:11px;color:var(--muted)"><span class="status-dot"></span>ALL SYSTEMS NOMINAL</div>
-      <div class="clock"><span id="clock">--:--:--</span><small id="date">---</small></div>
-    </header>
-
-    <section class="grid">
-      <!-- KPI strip -->
-      <div class="kpis">
-        <div class="panel kpi"><div class="lbl">NET P&amp;L · MONTH</div><div class="val" style="color:var(--green)">+$12,480</div><div class="sub">▲ 18.4% vs last month</div><div class="bar"><i style="width:78%"></i></div></div>
-        <div class="panel kpi"><div class="lbl">WIN RATE</div><div class="val" style="color:var(--cyan-2)">64.2%</div><div class="sub">87 W / 48 L</div><div class="bar"><i style="width:64%"></i></div></div>
-        <div class="panel kpi"><div class="lbl">PROFIT FACTOR</div><div class="val" style="color:var(--cyan-2)">2.31</div><div class="sub">AVG R: +1.84</div><div class="bar"><i style="width:70%"></i></div></div>
-        <div class="panel kpi"><div class="lbl">FUNDED ACCOUNTS</div><div class="val" style="color:var(--gold)">6 / 8</div><div class="sub">$900K capital online</div><div class="bar"><i style="width:75%;background:var(--gold);box-shadow:0 0 8px var(--gold)"></i></div></div>
-        <div class="panel kpi"><div class="lbl">DISCIPLINE SCORE</div><div class="val" style="color:var(--cyan-2)">92</div><div class="sub">Rules kept 11 days</div><div class="bar"><i style="width:92%"></i></div></div>
-      </div>
-
-      <!-- LEFT -->
-      <div class="col">
-        <div class="panel chart" style="display:flex;flex-direction:column">
-          <div class="ph">EQUITY TRAJECTORY <span class="tag">30D</span></div>
-          <div style="flex:1;min-height:150px">
-            <svg viewBox="0 0 400 180" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="eq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".45"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
-                <filter id="glow"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-              </defs>
-              <g stroke="rgba(255,255,255,.08)">
-                <line x1="0" y1="45" x2="400" y2="45"/><line x1="0" y1="90" x2="400" y2="90"/><line x1="0" y1="135" x2="400" y2="135"/>
-                <line x1="100" y1="0" x2="100" y2="180"/><line x1="200" y1="0" x2="200" y2="180"/><line x1="300" y1="0" x2="300" y2="180"/>
-              </g>
-              <path d="M0 160 L20 152 L40 156 L60 140 L80 143 L100 126 L120 131 L140 112 L160 118 L180 100 L200 104 L220 86 L240 92 L260 74 L280 79 L300 60 L320 66 L340 46 L360 50 L380 32 L400 24 L400 180 L0 180Z" fill="url(#eq)"/>
-              <path d="M0 160 L20 152 L40 156 L60 140 L80 143 L100 126 L120 131 L140 112 L160 118 L180 100 L200 104 L220 86 L240 92 L260 74 L280 79 L300 60 L320 66 L340 46 L360 50 L380 32 L400 24" fill="none" stroke="#f0f0f0" stroke-width="2" filter="url(#glow)"/>
-              <circle cx="400" cy="24" r="4" fill="#f0f0f0" filter="url(#glow)"/>
-            </svg>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px"><span>START $50,000</span><span style="color:var(--green)">NOW $62,480</span></div>
-        </div>
-        <div class="panel">
-          <div class="ph">PERFORMANCE MATRIX <span class="tag">LIVE</span></div>
-          <div class="rings">
-            <div>
-              <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="6"/><circle cx="50" cy="50" r="40" fill="none" stroke="#ffffff" stroke-width="6" stroke-dasharray="161 251" transform="rotate(-90 50 50)" filter="url(#glow)"/><text x="50" y="56" text-anchor="middle" fill="#ececec" font-family="Orbitron" font-size="17">64%</text></svg>
-              <div class="n">WIN RATE</div>
-            </div>
-            <div>
-              <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(43,255,168,.12)" stroke-width="6"/><circle cx="50" cy="50" r="40" fill="none" stroke="#2bffa8" stroke-width="6" stroke-dasharray="206 251" transform="rotate(-90 50 50)" filter="url(#glow)"/><text x="50" y="56" text-anchor="middle" fill="#ececec" font-family="Orbitron" font-size="17">82%</text></svg>
-              <div class="n">PLAN FOLLOWED</div>
-            </div>
-            <div>
-              <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="6"/><circle cx="50" cy="50" r="40" fill="none" stroke="#ffffff" stroke-width="6" stroke-dasharray="70 251" transform="rotate(-90 50 50)" filter="url(#glow)"/><text x="50" y="56" text-anchor="middle" fill="#ececec" font-family="Orbitron" font-size="17">28%</text></svg>
-              <div class="n">DRAWDOWN USED</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- CENTER : AI -->
-      <div class="core">
-        <div class="panel-free"></div>
-        <canvas class="reactor" id="atom"></canvas>
-
-        <div class="greet">
-          <div class="hello"><span id="greeting">Good evening</span>, <b>Jordi</b>.</div>
-          <div class="line">Markets are open and all six funded accounts are online. You're up <em style="color:var(--green)">+$1,240</em> today — 3 trades, all inside your plan. Shall I pull up the NQ setup you flagged?</div>
-          <div class="wave" id="wave"></div>
-        </div>
-        <div class="cmd"><span style="color:var(--cyan)">&gt;</span> Ask anything<span class="caret"></span><span class="mic">◉ VOICE</span></div>
-      </div>
-
-      <!-- RIGHT -->
-      <div class="col">
-        <div class="panel">
-          <div class="ph">RECENT EXECUTIONS <span class="tag">TODAY</span></div>
-          <div class="rows">
-            <div class="row"><span class="side l">LONG</span><b>NQ</b><span class="t">09:42 · ORB break</span><span class="r up">+$620</span></div>
-            <div class="row"><span class="side s">SHORT</span><b>ES</b><span class="t">10:15 · VWAP reject</span><span class="r up">+$410</span></div>
-            <div class="row"><span class="side l">LONG</span><b>GC</b><span class="t">11:03 · Pullback</span><span class="r dn">−$180</span></div>
-            <div class="row"><span class="side l">LONG</span><b>NQ</b><span class="t">13:28 · Trend cont.</span><span class="r up">+$390</span></div>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="ph">SYSTEM DIAGNOSTICS <span class="tag">AUTO</span></div>
-          <div class="sys">
-            <div class="s"><span>RISK EXPOSURE</span><span style="color:var(--green)">LOW</span><div class="meter"><i style="width:24%;background:var(--green);box-shadow:0 0 8px var(--green)"></i></div></div>
-            <div class="s"><span>DAILY LOSS LIMIT</span><span>$180 / $1,500</span><div class="meter"><i style="width:12%"></i></div></div>
-            <div class="s"><span>TRADES TODAY</span><span>3 / 5</span><div class="meter"><i style="width:60%"></i></div></div>
-            <div class="s"><span>FOCUS LEVEL</span><span style="color:var(--gold)">87%</span><div class="meter"><i style="width:87%;background:var(--gold);box-shadow:0 0 8px var(--gold)"></i></div></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- BOTTOM -->
-      <div class="bottom">
-        <div class="panel">
-          <div class="ph">TRADING CALENDAR <span class="tag">NOV 2026</span></div>
-          <div class="heat" id="heat"></div>
-        </div>
-        <div class="panel">
-          <div class="ph">ACTIVITY LOG <span class="tag">STREAM</span></div>
-          <div class="log">
-            <div><b>[13:28]</b> Trade logged · NQ long · <span class="ok">+$390</span></div>
-            <div><b>[12:00]</b> Lunch window — volatility dropping</div>
-            <div><b>[11:03]</b> Stop hit on GC · within risk plan <span class="ok">✓</span></div>
-            <div><b>[09:30]</b> Session open · bias: bullish</div>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="ph">TOP ACCOUNT <span class="tag">THIS MONTH</span></div>
-          <div style="font-family:var(--hud);font-size:22px;color:var(--green)">+$4,210</div>
-          <div style="font-family:var(--mono);font-size:12px;color:var(--text);margin-top:6px">Apex 150K · #2 · FUNDED</div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px">31 trades · 71% win rate · best setup: ORB break</div>
-        </div>
-      </div>
-    </section>
+<body data-page="dashboard" data-title="Overview">
+<section id="content" class="dash">
+  <div class="kpis">
+    <div class="panel kpi"><div class="lbl">Net P&amp;L this month</div><div class="val up">+$12,480</div><div class="sub">+18.4% vs last month</div></div>
+    <div class="panel kpi"><div class="lbl">Win rate</div><div class="val">64.2%</div><div class="sub">87 wins · 48 losses</div></div>
+    <div class="panel kpi"><div class="lbl">Profit factor</div><div class="val">2.31</div><div class="sub">Average +1.84R</div></div>
+    <div class="panel kpi"><div class="lbl">Active accounts</div><div class="val">6</div><div class="sub">4 funded · 2 evaluation</div></div>
   </div>
-</div>
 
+  <div class="panel chart" style="display:flex;flex-direction:column">
+    <div class="ph">Equity <span>Last 30 days</span></div>
+    <div style="flex:1;min-height:0">
+      <svg viewBox="0 0 400 260" preserveAspectRatio="none">
+        <defs><linearGradient id="eq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2bd98f" stop-opacity=".22"/><stop offset="1" stop-color="#2bd98f" stop-opacity="0"/></linearGradient></defs>
+        <g stroke="rgba(255,255,255,.05)"><line x1="0" y1="65" x2="400" y2="65"/><line x1="0" y1="130" x2="400" y2="130"/><line x1="0" y1="195" x2="400" y2="195"/></g>
+        <path d="M0 232 L20 220 L40 226 L60 204 L80 208 L100 184 L120 190 L140 164 L160 172 L180 146 L200 152 L220 126 L240 134 L260 108 L280 114 L300 88 L320 96 L340 66 L360 72 L380 46 L400 36 L400 260 L0 260Z" fill="url(#eq)"/>
+        <path d="M0 232 L20 220 L40 226 L60 204 L80 208 L100 184 L120 190 L140 164 L160 172 L180 146 L200 152 L220 126 L240 134 L260 108 L280 114 L300 88 L320 96 L340 66 L360 72 L380 46 L400 36" fill="none" stroke="#2bd98f" stroke-width="2" vector-effect="non-scaling-stroke"/>
+      </svg>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-top:12px"><span>Oct 17 · $50,000</span><span class="up" style="font-weight:600">$62,480</span></div>
+  </div>
+
+  <div class="core">
+    <canvas id="atom"></canvas>
+    <div class="hello"><span id="greeting">Good evening</span>, Jordi</div>
+    <div class="line">You're up <span class="up">+$1,240</span> today across 4 trades. All inside your plan.</div>
+  </div>
+
+  <div class="panel">
+    <div class="ph">Recent trades <a href="trades.html">View all →</a></div>
+    <div class="list">
+      <div class="it"><b>NQ <span class="pill l">LONG</span></b><span class="r up">+$390</span><span class="m">Today 1:28 PM · Apex #2</span><span class="m r" style="font-weight:400">+0.9R</span></div>
+      <div class="it"><b>GC <span class="pill l">LONG</span></b><span class="r dn">−$180</span><span class="m">Today 11:03 AM · Topstep #1</span><span class="m r" style="font-weight:400">−1.0R</span></div>
+      <div class="it"><b>ES <span class="pill s">SHORT</span></b><span class="r up">+$410</span><span class="m">Today 10:15 AM · Apex #2</span><span class="m r" style="font-weight:400">+1.6R</span></div>
+      <div class="it"><b>NQ <span class="pill l">LONG</span></b><span class="r up">+$620</span><span class="m">Today 9:42 AM · Apex #2</span><span class="m r" style="font-weight:400">+1.8R</span></div>
+      <div class="it"><b>NQ <span class="pill s">SHORT</span></b><span class="r dn">−$250</span><span class="m">Yesterday 2:10 PM · Apex #3</span><span class="m r" style="font-weight:400">−1.0R</span></div>
+    </div>
+  </div>
+</section>
+
+<script src="chrome.js"></script>
 <script src="atom.js"></script>
 <script>
-  createAtom(document.getElementById("atom"), { scale: 0.23, centerY: 0.52, density: 0.85 });
-  // greeting by time of day
-  function greet() {
-    const h = new Date().getHours();
-    return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
-  }
-  document.getElementById("greeting").textContent = greet();
-
-  // clock
-  const pad = (n) => String(n).padStart(2, "0");
-  function tick() {
-    const d = new Date();
-    document.getElementById("clock").textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    document.getElementById("date").textContent = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }).toUpperCase();
-  }
-  tick(); setInterval(tick, 1000);
-
-  // voice waveform
-  const wave = document.getElementById("wave");
-  for (let i = 0; i < 46; i++) {
-    const b = document.createElement("i");
-    const h = 6 + Math.abs(Math.sin(i * 0.55)) * 26 * (1 - Math.abs(i - 23) / 30);
-    b.style.height = h + "px";
-    b.style.animationDelay = (i * 0.04) + "s";
-    wave.appendChild(b);
-  }
-
-  // calendar heatmap (2 rows x 14)
-  const heat = document.getElementById("heat");
-  const vals = [2,-1,3,1,0,0,2,3,-2,1,2,0,0,3,1,2,-1,3,0,0,2,1,3,2,1,0,0,2];
-  vals.forEach((v) => {
-    const c = document.createElement("i");
-    if (v > 0) { c.style.background = `rgba(43,255,168,${0.15 + v * 0.22})`; c.style.boxShadow = v === 3 ? "0 0 8px rgba(43,255,168,.6)" : ""; }
-    else if (v < 0) c.style.background = `rgba(255,77,109,${0.25 + -v * 0.25})`;
-    else c.style.background = "rgba(255,255,255,.04)";
-    heat.appendChild(c);
-  });
+  const h = new Date().getHours();
+  document.getElementById("greeting").textContent = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  createAtom(document.getElementById("atom"), { scale: 0.24, centerY: 0.5, density: 0.85 });
 </script>
 </body>
 </html>

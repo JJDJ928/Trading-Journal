@@ -4,15 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Welcome</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Rajdhani:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden; cursor: pointer; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   .greet { position: fixed; left: 0; right: 0; bottom: 8vh; text-align: center; pointer-events: none; }
-  .hello { font: 600 clamp(26px, 3.2vw, 42px) "Orbitron", sans-serif; letter-spacing: 0.12em; text-shadow: 0 0 22px rgba(255,255,255,0.35); opacity: 0; animation: up 1.6s 0.8s ease-out forwards; }
-  .sub { margin-top: 14px; font: 400 18px "Rajdhani", sans-serif; letter-spacing: 0.08em; color: rgba(255,255,255,0.5); opacity: 0; animation: up 1.6s 1.8s ease-out forwards; }
-  .hint { margin-top: 30px; font: 400 11px "Orbitron", sans-serif; letter-spacing: 0.4em; color: rgba(255,255,255,0.4); opacity: 0; animation: up 1s 2.8s ease-out forwards, breathe 3.5s 3.8s ease-in-out infinite; }
+  .hello { font: 500 clamp(28px, 3.2vw, 44px) "Inter", sans-serif; letter-spacing: -0.02em; opacity: 0; animation: up 1.6s 0.8s ease-out forwards; }
+  .sub { margin-top: 14px; font: 400 17px "Inter", sans-serif; color: rgba(255,255,255,0.5); opacity: 0; animation: up 1.6s 1.8s ease-out forwards; }
+  .hint { margin-top: 30px; font: 500 11px "Inter", sans-serif; letter-spacing: 0.24em; color: rgba(255,255,255,0.4); opacity: 0; animation: up 1s 2.8s ease-out forwards, breathe 3.5s 3.8s ease-in-out infinite; }
   @keyframes up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
   @keyframes breathe { 50% { opacity: 0.35; } }
   .fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.8s; }
@@ -22,7 +22,7 @@
 <body>
 <canvas id="c"></canvas>
 <div class="greet">
-  <div class="hello"><span id="greeting">Good evening</span>, Jordi.</div>
+  <div class="hello"><span id="greeting">Good evening</span>, Jordi</div>
   <div class="sub">How may I help you today?</div>
   <div class="hint">CLICK ANYWHERE TO CONTINUE</div>
 </div>
