@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trade Journal</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="hud.css">
+</head>
+<body data-page="trades">
+<section id="content" class="page">
+  <div class="page-head">
+    <h1>TRADE JOURNAL</h1>
+    <span class="count">135 TRADES</span>
+    <div class="grow"></div>
+    <button class="btn primary" data-open>+ LOG TRADE</button>
+  </div>
+
+  <div class="filters">
+    <div class="field search">⌕ &nbsp;Search setups, notes, tags…</div>
+    <div class="field"><span class="k">ACCOUNT</span> All accounts<span class="chev">▾</span></div>
+    <div class="field"><span class="k">SYMBOL</span> All<span class="chev">▾</span></div>
+    <div class="field"><span class="k">RESULT</span> Win / Loss<span class="chev">▾</span></div>
+    <div class="field"><span class="k">DATE</span> Nov 1 – Nov 16<span class="chev">▾</span></div>
+  </div>
+
+  <div class="strip">
+    <div class="panel kpi"><div class="lbl">NET P&amp;L</div><div class="val" style="color:var(--green)">+$12,480</div><div class="sub">Nov 1 – Nov 16</div></div>
+    <div class="panel kpi"><div class="lbl">WIN RATE</div><div class="val">64.2%</div><div class="sub">87 W / 48 L</div></div>
+    <div class="panel kpi"><div class="lbl">AVG WIN</div><div class="val" style="color:var(--green)">+$318</div><div class="sub">Largest +$1,140</div></div>
+    <div class="panel kpi"><div class="lbl">AVG LOSS</div><div class="val" style="color:var(--red)">−$196</div><div class="sub">Largest −$610</div></div>
+    <div class="panel kpi"><div class="lbl">AVG R</div><div class="val">+1.84R</div><div class="sub">Profit factor 2.31</div></div>
+  </div>
+
+  <div class="split">
+    <div class="panel" style="overflow:hidden">
+      <table class="tbl">
+        <thead><tr><th>DATE</th><th>ACCOUNT</th><th>SYMBOL</th><th>SIDE</th><th class="r">QTY</th><th class="r">ENTRY</th><th class="r">EXIT</th><th>SETUP</th><th class="r">R</th><th class="r">P&amp;L</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <div class="panel detail">
+      <div class="ph">TRADE DETAIL <span class="tag">NOV 16 · 09:42</span></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between">
+        <div style="font-family:var(--hud);font-size:20px;letter-spacing:.08em">NQ <span class="side l" style="font-size:10px;vertical-align:middle">LONG</span></div>
+        <div style="font-family:var(--hud);font-size:22px;color:var(--green)">+$620</div>
+      </div>
+      <div class="chartbox"><svg id="chart" viewBox="0 0 420 190" preserveAspectRatio="none"></svg></div>
+      <div class="kv">
+        <div><div class="k">ENTRY</div><div class="v">21,312.50</div></div>
+        <div><div class="k">EXIT</div><div class="v">21,328.00</div></div>
+        <div><div class="k">CONTRACTS</div><div class="v">2</div></div>
+        <div><div class="k">STOP</div><div class="v">21,304.00</div></div>
+        <div><div class="k">R MULTIPLE</div><div class="v" style="color:var(--green)">+1.8R</div></div>
+        <div><div class="k">ACCOUNT</div><div class="v">Apex #2</div></div>
+      </div>
+      <div class="notes">Waited for the opening range to set, entered on the retest of the high. Took partials at 1R and let the runner go to the prior day high. Patient entry. This is the A+ setup.</div>
+      <div class="tags"><span>#ORB</span><span>#A+ setup</span><span>#NY open</span><span>#followed plan</span></div>
+    </div>
+  </div>
+
+  <div class="scrim" hidden>
+    <div class="modal">
+      <h2>LOG A TRADE <small data-close>✕</small></h2>
+      <div class="form">
+        <div class="f w2"><label>ACCOUNT</label><div class="in">Apex 150K · #2 <span class="m">▾</span></div></div>
+        <div class="f"><label>DATE</label><div class="in">Nov 16, 2026</div></div>
+        <div class="f"><label>TIME</label><div class="in">13:28</div></div>
+        <div class="f"><label>SYMBOL</label><div class="in focus">NQ<span style="width:2px;height:16px;background:#fff;display:inline-block;margin-left:2px;margin-right:auto"></span></div></div>
+        <div class="f"><label>SIDE</label><div class="seg"><span class="on l">LONG</span><span>SHORT</span></div></div>
+        <div class="f"><label>CONTRACTS</label><div class="in">2</div></div>
+        <div class="f"><label>SETUP</label><div class="in">Trend cont. <span class="m">▾</span></div></div>
+        <div class="f"><label>ENTRY</label><div class="in">21,362.25</div></div>
+        <div class="f"><label>STOP</label><div class="in">21,352.00</div></div>
+        <div class="f"><label>EXIT</label><div class="in">21,372.00</div></div>
+        <div class="f"><label>P&amp;L</label><div class="in" style="color:var(--green)">+$390.00</div></div>
+        <div class="f w4"><label>NOTES</label><div class="in area">Held through the pullback. Entry was a little early, should have waited for the 5m close.</div></div>
+        <div class="f w4"><label>SCREENSHOTS</label><div class="drop"><span class="thumb"></span><span class="thumb"></span>Drop chart screenshots here or click to upload</div></div>
+      </div>
+      <div class="actions"><button class="btn" data-close>CANCEL</button><button class="btn primary">SAVE TRADE</button></div>
+    </div>
+  </div>
+</section>
+
+<script src="chrome.js"></script>
+<script>
+  const trades = [
+    ["Nov 16 13:28", "Apex #2", "NQ", "l", 2, "21,362.25", "21,372.00", "Trend cont.", "+0.9", 390],
+    ["Nov 16 11:03", "Topstep #1", "GC", "l", 1, "2,684.20", "2,682.40", "Pullback", "−1.0", -180],
+    ["Nov 16 10:15", "Apex #2", "ES", "s", 2, "6,048.75", "6,044.65", "VWAP reject", "+1.6", 410],
+    ["Nov 16 09:42", "Apex #2", "NQ", "l", 2, "21,312.50", "21,328.00", "ORB break", "+1.8", 620, true],
+    ["Nov 15 14:10", "Apex #3", "NQ", "s", 1, "21,290.00", "21,302.50", "Reversal", "−1.0", -250],
+    ["Nov 15 10:31", "Apex #3", "NQ", "l", 2, "21,248.25", "21,276.75", "ORB break", "+2.4", 1140],
+    ["Nov 15 09:48", "Topstep #1", "ES", "l", 3, "6,031.00", "6,034.25", "Pullback", "+1.2", 487],
+    ["Nov 14 13:55", "Apex #1", "CL", "s", 2, "69.42", "69.71", "Range fade", "−1.0", -580],
+    ["Nov 14 10:02", "Apex #1", "NQ", "l", 1, "21,180.00", "21,201.25", "Trend cont.", "+2.1", 425],
+    ["Nov 13 11:20", "Apex #2", "ES", "s", 2, "6,019.50", "6,016.00", "VWAP reject", "+1.1", 350],
+    ["Nov 13 09:35", "Apex #3", "NQ", "l", 2, "21,105.75", "21,099.25", "ORB break", "−0.6", -260],
+    ["Nov 12 10:44", "Topstep #1", "GC", "l", 1, "2,671.10", "2,676.90", "Pullback", "+1.9", 580],
+    ["Nov 12 09:51", "Apex #2", "NQ", "s", 2, "21,060.00", "21,041.50", "Reversal", "+1.5", 740],
+  ];
+  const money = (v) => (v >= 0 ? "+$" : "−$") + Math.abs(v).toLocaleString();
+  document.getElementById("rows").innerHTML = trades.map(([d, a, s, side, q, e, x, setup, r, pnl, sel]) => `
+    <tr class="${sel ? "sel" : ""}">
+      <td class="m">${d}</td><td>${a}</td><td><b>${s}</b></td>
+      <td><span class="side ${side}">${side === "l" ? "LONG" : "SHORT"}</span></td>
+      <td class="r">${q}</td><td class="r m">${e}</td><td class="r m">${x}</td><td>${setup}</td>
+      <td class="r ${r.startsWith("+") ? "up" : "dn"}">${r}R</td>
+      <td class="r ${pnl >= 0 ? "up" : "dn"}" style="font-weight:600">${money(pnl)}</td>
+      <td><span class="shot">▣</span></td>
+    </tr>`).join("");
+
+  // greyscale candlestick "screenshot" with entry/exit markers
+  const svg = document.getElementById("chart");
+  let p = 120, out = "";
+  for (let y = 30; y < 190; y += 32) out += `<line x1="0" y1="${y}" x2="420" y2="${y}" stroke="rgba(255,255,255,.05)"/>`;
+  const seed = [3, -2, 4, -1, -3, 2, 5, -2, 3, 4, -1, 6, -3, 2, 4, 3, -2, 5, 2, -1, 4, 3, -2, 3, 5, -1, 2, 4];
+  seed.forEach((d, i) => {
+    const o = p, c = p - d * 3.2, hi = Math.min(o, c) - 4 - (i % 3) * 2, lo = Math.max(o, c) + 4 + (i % 2) * 3, x = 10 + i * 14.6;
+    const up = c < o, col = up ? "rgba(255,255,255,.9)" : "rgba(255,255,255,.35)";
+    out += `<line x1="${x}" y1="${hi}" x2="${x}" y2="${lo}" stroke="${col}"/>`;
+    out += `<rect x="${x - 4}" y="${Math.min(o, c)}" width="8" height="${Math.max(1.5, Math.abs(o - c))}" fill="${up ? "#fff" : "#000"}" stroke="${col}"/>`;
+    p = c;
+  });
+  out += `<line x1="0" y1="112" x2="420" y2="112" stroke="#2bffa8" stroke-dasharray="4 4" stroke-opacity=".7"/><text x="414" y="107" text-anchor="end" fill="#2bffa8" font-size="10" font-family="JetBrains Mono">ENTRY 21,312.50</text>`;
+  out += `<line x1="0" y1="138" x2="420" y2="138" stroke="#ff4d6d" stroke-dasharray="4 4" stroke-opacity=".7"/><text x="414" y="152" text-anchor="end" fill="#ff4d6d" font-size="10" font-family="JetBrains Mono">STOP 21,304.00</text>`;
+  out += `<line x1="0" y1="42" x2="420" y2="42" stroke="#fff" stroke-dasharray="4 4" stroke-opacity=".5"/><text x="6" y="37" fill="#fff" font-size="10" font-family="JetBrains Mono" opacity=".7">EXIT 21,328.00</text>`;
+  svg.innerHTML = out;
+</script>
+</body>
+</html>
