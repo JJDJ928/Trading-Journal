@@ -259,3 +259,49 @@ a { color: inherit; }
 
 /* bigger AI on Home: give the middle column more room */
 .dash { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.35fr) minmax(0, 0.95fr); }
+
+/* ================================================================ daily tab */
+.month-name { min-width: 190px; text-align: center; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.kpi .val .of { font-size: 15px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.kpi .barline { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); margin-top: 14px; overflow: hidden; }
+.kpi .barline i { display: block; height: 100%; border-radius: 4px; background: #fff; }
+.daily-split { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; height: 100%; grid-auto-rows: minmax(84px, 1fr); grid-template-rows: auto; }
+.cal .dow { font-size: 12.5px; color: var(--muted); font-weight: 500; padding: 0 4px 4px; }
+.cal .day { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; cursor: pointer; min-width: 0; transition: border-color 0.15s, background 0.15s; }
+.cal .day:hover { border-color: var(--line-strong); }
+.cal .day .n { font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+.cal .day .pen { font-size: 11px; color: var(--muted); font-weight: 400; }
+.cal .day .hol { font-size: 10.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal .day .dots { display: flex; gap: 5px; margin-top: auto; }
+.cal .day .dots i { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.3); }
+.cal .day .dots i.on { background: #fff; border-color: #fff; }
+.cal .day.out { opacity: 0.3; }
+.cal .day.future .dots i { border-color: rgba(255, 255, 255, 0.14); }
+.cal .day.complete { border-color: rgba(43, 217, 143, 0.55); background: rgba(43, 217, 143, 0.07); }
+.cal .day.complete .dots i.on { background: var(--green); border-color: var(--green); }
+.cal .day.missed .n { color: var(--muted); }
+.cal .day.today .n > :first-child, .cal .day.today .n { color: #fff; }
+.cal .day.today { border-color: rgba(255, 255, 255, 0.6); }
+.cal .day.sel { background: rgba(255, 255, 255, 0.08); border-color: #fff; }
+.day-count { font-size: 22px; font-weight: 600; color: var(--muted); }
+.day-count.up { color: var(--green); }
+.checks { display: flex; flex-direction: column; gap: 10px; }
+.check { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; font-size: 15px; font-weight: 500; cursor: pointer; user-select: none; transition: border-color 0.15s, background 0.15s; }
+.check:hover { border-color: var(--line-strong); }
+.check.off { opacity: 0.45; cursor: default; }
+.check input { position: absolute; opacity: 0; pointer-events: none; }
+.check .box { width: 22px; height: 22px; border-radius: 7px; border: 1.5px solid rgba(255, 255, 255, 0.35); display: grid; place-items: center; flex: none; transition: background 0.15s, border-color 0.15s; }
+.check input:checked + .box { background: var(--green); border-color: var(--green); }
+.check input:checked + .box::after { content: ""; width: 10px; height: 5px; border-left: 2px solid #000; border-bottom: 2px solid #000; transform: rotate(-45deg) translateY(-1px); }
+.check:has(input:checked) { border-color: rgba(43, 217, 143, 0.45); background: rgba(43, 217, 143, 0.06); }
+.check input:focus-visible + .box { outline: 2px solid #fff; outline-offset: 2px; }
+.day-journal { flex: 1; min-height: 180px; width: 100%; resize: none; border: 1px solid var(--line-strong); border-radius: 12px; background: transparent; color: var(--text); font: 14.5px/1.65 var(--font); padding: 14px 16px; outline: none; }
+.day-journal:focus { border-color: #fff; }
+.day-journal::placeholder { color: var(--faint); }
+#journal-status { font-size: 12px; color: var(--muted); }
+
+/* keep the shell exactly one screen tall; only the page area scrolls */
+.app { grid-template-rows: minmax(0, 1fr); overflow: hidden; }
+.main, .rail { min-height: 0; }
+.cal { grid-auto-rows: minmax(76px, 1fr); }

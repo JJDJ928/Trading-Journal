@@ -135,6 +135,46 @@ def put_settings():
     return get_settings()
 
 
+# ---------------------------------------------------------------- daily tasks + journal
+
+DAILY_TASKS = ("trading", "reading", "gym")
+
+
+def day_json(row):
+    return {"date": row["date"], "done": json.loads(row["done"] or "[]"), "journal": row["journal"] or ""}
+
+
+@bp.get("/days")
+def list_days():
+    rows = get_db().execute("SELECT * FROM days ORDER BY date").fetchall()
+    return jsonify([day_json(r) for r in rows])
+
+
+@bp.put("/days/<date>")
+def put_day(date):
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        raise NotFound("That isn't a valid date.")
+    data = body()
+    done = data.get("done") or []
+    if not isinstance(done, list):
+        raise ValidationError({"done": "Tasks must be a list."})
+    done = [t for t in DAILY_TASKS if t in done]
+    journal = str(data.get("journal") or "").strip()
+    if len(journal) > 20000:
+        raise ValidationError({"journal": "Journal entry is too long."})
+    db = get_db()
+    if not done and not journal:
+        db.execute("DELETE FROM days WHERE date = ?", (date,))
+    else:
+        db.execute("INSERT INTO days (date, done, journal) VALUES (?, ?, ?) ON CONFLICT(date) DO UPDATE SET "
+                   "done = excluded.done, journal = excluded.journal, updated_at = datetime('now')",
+                   (date, json.dumps(done), journal or None))
+    db.commit()
+    return jsonify({"date": date, "done": done, "journal": journal})
+
+
 # ---------------------------------------------------------------- accounts
 
 def account_json(row):

@@ -2,7 +2,7 @@
 (function () {
   "use strict";
 
-  const state = { accounts: [], trades: [], settings: { name: "Jordi" }, selectedTrade: null, filters: { q: "", account: "", range: "month" }, accountShow: "recent" };
+  const state = { accounts: [], trades: [], settings: { name: "Jordi" }, days: {}, daily: { month: null, selected: null }, selectedTrade: null, filters: { q: "", account: "", range: "month" }, accountShow: "recent" };
   const view = document.getElementById("view");
   const modalRoot = document.getElementById("modal-root");
   let atom = null; // animation running on the current screen
@@ -110,8 +110,8 @@
 
   // ------------------------------------------------------------------ data
   async function loadAll() {
-    const [accounts, trades, settings] = await Promise.all([api("GET", "/api/accounts"), api("GET", "/api/trades"), api("GET", "/api/settings")]);
-    Object.assign(state, { accounts, trades, settings });
+    const [accounts, trades, settings, days] = await Promise.all([api("GET", "/api/accounts"), api("GET", "/api/trades"), api("GET", "/api/settings"), api("GET", "/api/days")]);
+    Object.assign(state, { accounts, trades, settings, days: Object.fromEntries(days.map((d) => [d.date, d])) });
     document.querySelectorAll("[data-name]").forEach((el) => (el.textContent = settings.name));
   }
 
@@ -126,6 +126,7 @@
       if (params.has("account")) { state.filters.account = params.get("account"); state.filters.range = "all"; }
       renderTrades();
     } else if (page === "accounts") renderAccounts();
+    else if (page === "daily") renderDaily();
     else renderHome();
     view.scrollTop = 0;
   }
@@ -376,6 +377,168 @@
   }
   const progress = (label, value, frac, color) =>
     `<div class="prog"><span>${label}</span><span>${value}</span></div><div class="barline"><i style="width:${(Math.max(0, Math.min(1, frac)) * 100).toFixed(1)}%;${color ? "background:" + color : ""}"></i></div>`;
+
+
+  // ------------------------------------------------------------------ daily tasks + journal
+  const TASKS = { trading: "Trading", reading: "Read 20+ pages", gym: "Gym 1+ hour" };
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const fromYmd = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+
+  // Days the US stock market is closed (NYSE holiday rules), as { "YYYY-MM-DD": "Name" }.
+  const holidayCache = {};
+  function marketHolidays(year) {
+    if (holidayCache[year]) return holidayCache[year];
+    const out = {};
+    const nth = (month, weekday, n) => { const d = new Date(year, month, 1); d.setDate(1 + ((weekday - d.getDay() + 7) % 7) + (n - 1) * 7); return d; };
+    const last = (month, weekday) => { const d = new Date(year, month + 1, 0); d.setDate(d.getDate() - ((d.getDay() - weekday + 7) % 7)); return d; };
+    const fixed = (month, day, name) => {
+      const d = new Date(year, month, day);
+      if (d.getDay() === 6) d.setDate(d.getDate() - 1);       // Saturday: closed the Friday before
+      else if (d.getDay() === 0) d.setDate(d.getDate() + 1);  // Sunday: closed the Monday after
+      if (d.getFullYear() === year) out[ymd(d)] = name;       // (a Saturday New Year's Day is not observed)
+    };
+    // Easter Sunday (Gregorian), for Good Friday
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const easter = new Date(year, Math.floor((h + l - 7 * m + 114) / 31) - 1, ((h + l - 7 * m + 114) % 31) + 1);
+    const goodFriday = new Date(easter); goodFriday.setDate(easter.getDate() - 2);
+
+    fixed(0, 1, "New Year's Day");
+    out[ymd(nth(0, 1, 3))] = "Martin Luther King Jr. Day";
+    out[ymd(nth(1, 1, 3))] = "Presidents' Day";
+    out[ymd(goodFriday)] = "Good Friday";
+    out[ymd(last(4, 1))] = "Memorial Day";
+    fixed(5, 19, "Juneteenth");
+    fixed(6, 4, "Independence Day");
+    out[ymd(nth(8, 1, 1))] = "Labor Day";
+    out[ymd(nth(10, 4, 4))] = "Thanksgiving";
+    fixed(11, 25, "Christmas Day");
+    return (holidayCache[year] = out);
+  }
+  const holidayName = (date) => marketHolidays(date.getFullYear())[ymd(date)] || null;
+  // Weekdays: trading + reading + gym. Weekends and market holidays: no trading.
+  function tasksFor(date) {
+    const weekend = date.getDay() === 0 || date.getDay() === 6;
+    return weekend || holidayName(date) ? ["reading", "gym"] : ["trading", "reading", "gym"];
+  }
+  const dayDone = (key) => state.days[key]?.done || [];
+  const dayComplete = (date) => { const done = dayDone(ymd(date)); return tasksFor(date).every((t) => done.includes(t)); };
+
+  function dailyStreak() {
+    const d = startOfDay(new Date());
+    if (!dayComplete(d)) d.setDate(d.getDate() - 1); // today still in progress doesn't break the streak
+    let n = 0;
+    while (dayComplete(d)) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+
+  function renderDaily() {
+    setTitle("Daily");
+    const today = startOfDay(new Date());
+    if (!state.daily.month) state.daily.month = new Date(today.getFullYear(), today.getMonth(), 1);
+    if (!state.daily.selected) state.daily.selected = ymd(today);
+    view.innerHTML = `
+    <section class="page">
+      <div class="toolbar">
+        <button class="btn" data-month="-1" aria-label="Previous month">‹</button>
+        <div class="month-name" id="month-name"></div>
+        <button class="btn" data-month="1" aria-label="Next month">›</button>
+        <button class="btn" data-month="0">Today</button>
+        <div class="grow"></div>
+      </div>
+      <div class="stats" id="daily-stats"></div>
+      <div class="split daily-split">
+        <div class="panel"><div class="cal" id="cal"></div></div>
+        <div class="panel detail" id="day-panel"></div>
+      </div>
+    </section>`;
+    view.querySelectorAll("[data-month]").forEach((b) => b.addEventListener("click", () => {
+      const step = Number(b.dataset.month), m = state.daily.month;
+      if (step === 0) { state.daily.month = new Date(today.getFullYear(), today.getMonth(), 1); state.daily.selected = ymd(today); paintDay(); }
+      else state.daily.month = new Date(m.getFullYear(), m.getMonth() + step, 1);
+      paintCalendar(); paintDailyStats();
+    }));
+    paintCalendar(); paintDailyStats(); paintDay();
+  }
+
+  function paintDailyStats() {
+    const el = document.getElementById("daily-stats");
+    if (!el) return;
+    const m = state.daily.month, today = startOfDay(new Date());
+    const counts = { trading: [0, 0], reading: [0, 0], gym: [0, 0] };
+    for (const d = new Date(m); d.getMonth() === m.getMonth() && d <= today; d.setDate(d.getDate() + 1)) {
+      const done = dayDone(ymd(d));
+      for (const t of tasksFor(d)) { counts[t][1]++; if (done.includes(t)) counts[t][0]++; }
+    }
+    const streak = dailyStreak();
+    const tile = (label, [n, of]) => `<div class="panel kpi"><div class="lbl">${label}</div><div class="val">${n}<span class="of"> / ${of}</span></div>
+      <div class="barline"><i style="width:${of ? (n / of) * 100 : 0}%"></i></div></div>`;
+    el.innerHTML = `
+      <div class="panel kpi"><div class="lbl">Current streak</div><div class="val ${streak ? "up" : ""}">${streak}<span class="of"> day${streak === 1 ? "" : "s"}</span></div><div class="sub">Days with every task done</div></div>
+      ${tile("Trading days", counts.trading)}${tile("Reading days", counts.reading)}${tile("Gym days", counts.gym)}`;
+  }
+
+  function paintCalendar() {
+    const el = document.getElementById("cal");
+    if (!el) return;
+    const m = state.daily.month, today = startOfDay(new Date()), todayKey = ymd(today);
+    document.getElementById("month-name").textContent = m.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    const first = new Date(m); first.setDate(1 - ((m.getDay() + 6) % 7)); // start on Monday
+    let html = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => `<div class="dow">${d}</div>`).join("");
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(first); d.setDate(first.getDate() + i);
+      if (i >= 35 && d.getMonth() !== m.getMonth()) break; // skip an empty sixth week
+      const key = ymd(d), tasks = tasksFor(d), done = dayDone(key), hol = holidayName(d);
+      const complete = tasks.every((t) => done.includes(t)), past = d < today;
+      const classes = ["day", d.getMonth() !== m.getMonth() ? "out" : "", key === todayKey ? "today" : "", key === state.daily.selected ? "sel" : "",
+        complete ? "complete" : past && d.getMonth() === m.getMonth() ? "missed" : "", d > today ? "future" : ""].join(" ");
+      html += `<div class="${classes}" data-day="${key}">
+        <div class="n">${d.getDate()}${state.days[key]?.journal ? `<span class="pen" title="Has a journal entry">✎</span>` : ""}</div>
+        ${hol ? `<div class="hol">${esc(hol)}</div>` : ""}
+        <div class="dots">${tasks.map((t) => `<i class="${done.includes(t) ? "on" : ""}" title="${TASKS[t]}"></i>`).join("")}</div>
+      </div>`;
+    }
+    el.innerHTML = html;
+    el.querySelectorAll("[data-day]").forEach((c) => c.addEventListener("click", () => { state.daily.selected = c.dataset.day; paintCalendar(); paintDay(); }));
+  }
+
+  let journalTimer = null;
+  function paintDay() {
+    const el = document.getElementById("day-panel");
+    if (!el) return;
+    clearTimeout(journalTimer);
+    const key = state.daily.selected, date = fromYmd(key), today = startOfDay(new Date());
+    const tasks = tasksFor(date), hol = holidayName(date), future = date > today;
+    const weekend = date.getDay() === 0 || date.getDay() === 6;
+    const entry = state.days[key] || { done: [], journal: "" };
+    el.innerHTML = `
+      <div class="head"><div>
+        <div class="sym">${date.toLocaleDateString("en-US", { weekday: "long" })}</div>
+        <div class="muted" style="font-size:13px;margin-top:2px">${date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}${hol ? ` · ${esc(hol)}, market closed` : weekend ? " · Weekend" : ""}</div>
+      </div><div class="day-count" id="day-count"></div></div>
+      <div class="checks">${tasks.map((t) => `
+        <label class="check ${future ? "off" : ""}"><input type="checkbox" data-task="${t}" ${entry.done.includes(t) ? "checked" : ""} ${future ? "disabled" : ""}><span class="box"></span><span>${TASKS[t]}</span></label>`).join("")}
+      </div>
+      <div class="ph" style="margin:6px 0 -8px">Journal <span id="journal-status"></span></div>
+      <textarea id="day-journal" class="day-journal" placeholder="${future ? "This day hasn't happened yet." : "How did today go? What did you read, how was the gym, how did you feel?"}" ${future ? "disabled" : ""}>${esc(entry.journal)}</textarea>`;
+    const count = () => { const n = tasks.filter((t) => dayDone(key).includes(t)).length; const c = document.getElementById("day-count"); c.textContent = `${n} / ${tasks.length}`; c.classList.toggle("up", n === tasks.length); };
+    count();
+    const area = el.querySelector("#day-journal"), status = el.querySelector("#journal-status");
+    const save = async () => {
+      clearTimeout(journalTimer);
+      const done = [...el.querySelectorAll("[data-task]:checked")].map((c) => c.dataset.task);
+      try {
+        const saved = await api("PUT", `/api/days/${key}`, { done, journal: area.value });
+        if (saved.done.length || saved.journal) state.days[key] = saved; else delete state.days[key];
+        status.textContent = "Saved";
+        count(); paintCalendar(); paintDailyStats();
+      } catch (err) { status.textContent = ""; toast(err.message, true); }
+    };
+    el.querySelectorAll("[data-task]").forEach((c) => c.addEventListener("change", save));
+    area.addEventListener("input", () => { status.textContent = "Saving…"; clearTimeout(journalTimer); journalTimer = setTimeout(save, 700); });
+    area.addEventListener("blur", () => { if (status.textContent === "Saving…") save(); });
+  }
 
   // ------------------------------------------------------------------ modals
   function openModal(html, width) {

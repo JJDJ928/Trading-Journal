@@ -56,6 +56,14 @@ CREATE TABLE IF NOT EXISTS screenshots (
     content_type  TEXT,
     created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Daily habits tab: one row per calendar day, with the tasks ticked off and that day's journal entry.
+CREATE TABLE IF NOT EXISTS days (
+    date       TEXT PRIMARY KEY,
+    done       TEXT NOT NULL DEFAULT '[]',
+    journal    TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 

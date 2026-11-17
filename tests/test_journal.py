@@ -120,3 +120,19 @@ def test_data_survives_restart(tmp_path):
     add_trade(c, a["id"])
     c2 = create_app(folder).test_client()
     assert len(c2.get("/api/accounts").json) == 1 and len(c2.get("/api/trades").json) == 1
+
+
+def test_daily_tasks_and_journal(jclient):
+    assert jclient.get("/api/days").json == []
+    r = jclient.put("/api/days/2026-11-16", json={"done": ["gym", "nonsense", "trading"], "journal": " Good day. "})
+    assert r.status_code == 200
+    assert r.json == {"date": "2026-11-16", "done": ["trading", "gym"], "journal": "Good day."}
+    jclient.put("/api/days/2026-11-17", json={"done": ["reading"]})
+    assert [d["date"] for d in jclient.get("/api/days").json] == ["2026-11-16", "2026-11-17"]
+    # updating replaces, and an emptied day is removed
+    jclient.put("/api/days/2026-11-16", json={"done": [], "journal": "Only notes"})
+    assert jclient.get("/api/days").json[0] == {"date": "2026-11-16", "done": [], "journal": "Only notes"}
+    jclient.put("/api/days/2026-11-17", json={"done": [], "journal": ""})
+    assert len(jclient.get("/api/days").json) == 1
+    assert jclient.put("/api/days/not-a-date", json={"done": []}).status_code == 404
+    assert jclient.put("/api/days/2026-11-16", json={"done": "gym"}).status_code == 400
