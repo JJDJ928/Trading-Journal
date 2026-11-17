@@ -62,8 +62,9 @@ def main():
 
     data_dir = os.environ.get("JOURNAL_DATA_DIR") or default_data_dir()
     server, url = start_server(create_app(data_dir))
+    # On Windows the window opens maximized so it fills the whole screen.
     webview.create_window(APP_NAME, url, width=1440, height=900, min_size=(1100, 700),
-                          background_color="#000000")
+                          background_color="#000000", maximized=sys.platform == "win32")
     # private_mode=False keeps small preferences (last account used) between launches.
     webview.start(private_mode=False, storage_path=os.path.join(data_dir, "webview"))
     server.shutdown()

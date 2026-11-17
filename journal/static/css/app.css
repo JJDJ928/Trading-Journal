@@ -175,7 +175,7 @@ a { color: inherit; }
 .summary-line b { color: var(--text); font-weight: 600; }
 
 /* dashboard */
-.core canvas { height: 340px; }
+.core canvas { height: 470px; margin: -40px 0 -30px; }
 .core .actions { margin-top: 18px; display: flex; gap: 10px; }
 .list .it { cursor: pointer; }
 .list .it:hover b { text-decoration: underline; text-underline-offset: 3px; }
@@ -256,3 +256,6 @@ a { color: inherit; }
 @keyframes breathe { 50% { opacity: 0.35; } }
 .cards { flex: none; grid-auto-rows: auto; align-content: start; }
 .acct .spark { flex: none; height: 80px; }
+
+/* bigger AI on Home: give the middle column more room */
+.dash { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.35fr) minmax(0, 0.95fr); }

@@ -23,7 +23,7 @@
   }
 
   window.createAtom = function (canvas, opts = {}) {
-    const o = Object.assign({ scale: 0.26, centerY: 0.5, interactive: true, density: 1 }, opts);
+    const o = Object.assign({ scale: 0.26, centerY: 0.5, interactive: true, follow: false, density: 1 }, opts);
     const ctx = canvas.getContext("2d");
     let W = 0, H = 0, R = 0;
 
@@ -63,7 +63,13 @@
     let links = [];
 
     let mx = 0, my = 0, tmx = 0, tmy = 0;
-    const onMove = (e) => { tmx = e.clientX / innerWidth - 0.5; tmy = e.clientY / innerHeight - 0.5; };
+    // hover: lx/ly = mouse inside the canvas, hov eases 0 -> 1 while the cursor is near the atom
+    let lx = -1e4, ly = -1e4, hov = 0, ox = 0, oy = 0;
+    const onMove = (e) => {
+      tmx = e.clientX / innerWidth - 0.5; tmy = e.clientY / innerHeight - 0.5;
+      const b = canvas.getBoundingClientRect();
+      lx = e.clientX - b.left; ly = e.clientY - b.top;
+    };
     if (o.interactive) addEventListener("mousemove", onMove);
 
     function rot(x, y, z, ay, ax) {
@@ -84,12 +90,20 @@
     function frame(ms) {
       const t = ms / 1000, dt = Math.min(0.05, t - last || 0.016); last = t;
       mx += (tmx - mx) * 0.03; my += (tmy - my) * 0.03;
+      const hx = W / 2, hy = H * o.centerY;
+      const near = o.follow && Math.hypot(lx - hx, ly - hy) < R * 2.1;
+      hov += ((near ? 1 : 0) - hov) * 0.05;
+      // drift toward the cursor while hovering, settle back when it leaves
+      const lim = R * 0.3;
+      const tox = near ? Math.max(-lim, Math.min(lim, (lx - hx) * 0.18)) : 0;
+      const toy = near ? Math.max(-lim, Math.min(lim, (ly - hy) * 0.18)) : 0;
+      ox += (tox - ox) * 0.05; oy += (toy - oy) * 0.05;
 
       ctx.clearRect(0, 0, W, H);
-      const cx = W / 2, cy = H * o.centerY;
+      const cx = hx + ox, cy = hy + oy;
       // slow breathing: ~7 second cycle, with a softer second harmonic
       const breath = 1 + Math.sin(t * 0.9) * 0.045 + Math.sin(t * 0.45 + 1) * 0.02;
-      const ay = t * 0.07 + mx * 0.5, ax = 0.32 + Math.sin(t * 0.13) * 0.12 + my * 0.35;
+      const ay = t * 0.07 + mx * 0.5 + (ox / R) * 1.4, ax = 0.32 + Math.sin(t * 0.13) * 0.12 + my * 0.35 - (oy / R) * 1.2;
       const persp = 2.8;
       const proj = (x, y, z) => { const k = persp / (persp + z); return [cx + x * R * k, cy + y * R * k, z, k]; };
 
@@ -132,8 +146,18 @@
         const r = p.base * (breath + n) * (p.layer === 1 ? 1 + Math.sin(t * 0.9 + 1.2) * 0.04 : 1);
         const spin = p.layer === 1 ? -t * 0.11 : p.layer === 2 ? t * 0.2 : 0;
         const [x, y, z] = rot(p.x * r, p.y * r, p.z * r, ay + spin, ax);
-        const [sx, sy, zz, k] = proj(x, y, z);
-        return { sx, sy, z: zz, k, p };
+        let [sx, sy, zz, k] = proj(x, y, z);
+        let glow = 0;
+        if (hov > 0.01) {
+          // particles near the cursor light up and gently part around it
+          const dx = sx - lx, dy = sy - ly, d = Math.hypot(dx, dy) || 1, rad = R * 0.6;
+          if (d < rad) {
+            glow = (1 - d / rad) * hov;
+            const push = glow * glow * R * 0.16;
+            sx += (dx / d) * push; sy += (dy / d) * push;
+          }
+        }
+        return { sx, sy, z: zz, k, p, glow };
       });
 
       // connections
@@ -184,8 +208,15 @@
       for (const q of P) {
         const depth = Math.max(0.1, (1.6 - q.z) / 2.6);
         const tw = 0.75 + 0.25 * Math.sin(t * 1.1 + q.p.ph);
-        ctx.fillStyle = `rgba(255,255,255,${(0.25 + depth * 0.75) * tw})`;
-        ctx.beginPath(); ctx.arc(q.sx, q.sy, q.p.sz * (0.6 + depth * 0.8) * (R / 230), 0, TAU); ctx.fill();
+        ctx.fillStyle = `rgba(255,255,255,${Math.min(1, (0.25 + depth * 0.75) * tw + q.glow)})`;
+        ctx.beginPath(); ctx.arc(q.sx, q.sy, q.p.sz * (0.6 + depth * 0.8) * (R / 230) * (1 + q.glow * 0.9), 0, TAU); ctx.fill();
+      }
+
+      // soft light following the cursor
+      if (hov > 0.01) {
+        const lg = ctx.createRadialGradient(lx, ly, 0, lx, ly, R * 0.7);
+        lg.addColorStop(0, `rgba(255,255,255,${0.08 * hov})`); lg.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(lx, ly, R * 0.7, 0, TAU); ctx.fill();
       }
 
       // nucleus heartbeat glow (double beat each breath)

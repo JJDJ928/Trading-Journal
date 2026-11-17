@@ -174,7 +174,7 @@
           </div>`).join("")}</div>` : `<div class="empty"><h3>No trades yet</h3><p>Your latest trades will show up here.</p></div>`}
       </div>
     </section>`;
-    atom = createAtom(document.getElementById("dash-atom"), { scale: 0.24, centerY: 0.5, density: 0.85 });
+    atom = createAtom(document.getElementById("dash-atom"), { scale: 0.27, centerY: 0.5, density: 0.9, follow: true });
     view.querySelectorAll("[data-trade]").forEach((el) => el.addEventListener("click", () => { state.selectedTrade = Number(el.dataset.trade); state.filters = { q: "", account: "", range: "all" }; location.hash = "#/trades"; }));
   }
 
