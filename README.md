@@ -1,3 +1,26 @@
+# Trading Journal
+
+A separate, simpler app in this repo: a black-and-white trading journal for your **trades** and
+**accounts**, with an animated AI greeting on launch. Everything stays on your computer.
+
+**Install on Mac:** on GitHub open **Actions → Build Trading Journal (macOS)**, click the latest green
+run and download **Trading-Journal-macOS** under *Artifacts* (a zip with `Trading-Journal.dmg`). Open the
+`.dmg` and drag **Trading Journal** into **Applications**. The first time, macOS blocks it because it isn't
+signed: open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
+
+**Install on Windows:** open **Actions → Build Trading Journal (Windows)**, download
+**Trading-Journal-Windows** (a zip with `Trading-Journal-Setup.exe`) and run it. If SmartScreen says
+"Windows protected your PC", click **More info → Run anyway**.
+
+Your records live in `~/Library/Application Support/Trading Journal` (Mac) or
+`%APPDATA%\Trading Journal` (Windows), so updating or uninstalling the app never deletes them.
+
+Run it from source in a browser: `pip install -r requirements.txt && python run_journal.py`
+(records go in `./journal-data`). Build locally: `bash scripts/build_journal_mac.sh` or
+`./scripts/build_journal_windows.ps1`.
+
+---
+
 # Rinse Tracker
 
 A local-first web app for tracking a prop-firm rinse system: evaluations, funded

@@ -1,0 +1,88 @@
+"""SQLite storage for Trading Journal.
+
+Money is stored as integer cents so totals are exact. Screenshots are files on
+disk; the database only keeps their names.
+"""
+import sqlite3
+
+from flask import current_app, g
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
+
+CREATE TABLE IF NOT EXISTS accounts (
+    id                  INTEGER PRIMARY KEY,
+    name                TEXT    NOT NULL,
+    firm                TEXT,
+    type                TEXT    NOT NULL CHECK (type IN ('evaluation', 'funded', 'personal')),
+    status              TEXT    NOT NULL DEFAULT 'active'
+                        CHECK (status IN ('active', 'passed', 'breached', 'closed')),
+    start_balance_cents INTEGER NOT NULL,
+    profit_target_cents INTEGER,
+    max_drawdown_cents  INTEGER,
+    notes               TEXT,
+    created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS trades (
+    id          INTEGER PRIMARY KEY,
+    account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    traded_at   TEXT    NOT NULL,
+    symbol      TEXT    NOT NULL,
+    side        TEXT    NOT NULL CHECK (side IN ('long', 'short')),
+    contracts   REAL,
+    setup       TEXT,
+    entry       REAL,
+    stop        REAL,
+    exit        REAL,
+    pnl_cents   INTEGER NOT NULL,
+    notes       TEXT,
+    tags        TEXT,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS trades_account ON trades(account_id);
+CREATE INDEX IF NOT EXISTS trades_time ON trades(traded_at);
+
+CREATE TABLE IF NOT EXISTS screenshots (
+    id            INTEGER PRIMARY KEY,
+    trade_id      INTEGER NOT NULL REFERENCES trades(id) ON DELETE CASCADE,
+    filename      TEXT    NOT NULL UNIQUE,
+    original_name TEXT,
+    content_type  TEXT,
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+
+def connect(path):
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    return conn
+
+
+def init_db(path):
+    conn = connect(path)
+    try:
+        conn.executescript(SCHEMA)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_db():
+    if "db" not in g:
+        g.db = connect(current_app.config["DB_PATH"])
+    return g.db
+
+
+def close_db(_exc=None):
+    conn = g.pop("db", None)
+    if conn is not None:
+        conn.close()

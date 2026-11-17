@@ -1,0 +1,38 @@
+name: Build Trading Journal (Windows)
+
+on:
+  push:
+    paths:
+      - "journal_desktop.py"
+      - "journal/**"
+      - "scripts/build_journal_*"
+      - "scripts/make_journal_icon.py"
+      - "installer/trading-journal.iss"
+      - "requirements*.txt"
+      - ".github/workflows/build-journal-windows.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run tests
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pytest -q tests/test_journal.py
+
+      - name: Build app and installer
+        shell: pwsh
+        run: ./scripts/build_journal_windows.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Trading-Journal-Windows
+          path: dist/Trading-Journal-Setup.exe
+          if-no-files-found: error

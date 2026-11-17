@@ -6,6 +6,7 @@ venv/
 # Your real records and the demo sandbox never go into git
 data/
 demo-data/
+journal-data/
 
 # macOS app build output
 build/
