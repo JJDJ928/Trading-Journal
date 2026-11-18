@@ -62,9 +62,47 @@ CREATE TABLE IF NOT EXISTS days (
     date       TEXT PRIMARY KEY,
     done       TEXT NOT NULL DEFAULT '[]',
     journal    TEXT,
+    mood       INTEGER CHECK (mood BETWEEN 1 AND 5),
+    energy     INTEGER CHECK (energy BETWEEN 1 AND 5),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Reading: books, and one chapter recap per day.
+CREATE TABLE IF NOT EXISTS books (
+    id             INTEGER PRIMARY KEY,
+    title          TEXT    NOT NULL,
+    author         TEXT,
+    total_chapters INTEGER,
+    status         TEXT    NOT NULL DEFAULT 'reading' CHECK (status IN ('reading', 'finished')),
+    finished_on    TEXT,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS chapters (
+    date       TEXT PRIMARY KEY,
+    book_id    INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    chapter    INTEGER,
+    learned    TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Wins wall: milestones with an optional photo (stored with the screenshots).
+CREATE TABLE IF NOT EXISTS wins (
+    id         INTEGER PRIMARY KEY,
+    date       TEXT NOT NULL,
+    title      TEXT NOT NULL,
+    category   TEXT NOT NULL DEFAULT 'personal' CHECK (category IN ('trading', 'fitness', 'reading', 'personal')),
+    note       TEXT,
+    photo      TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
+
+# Columns added after a table first shipped; older databases get them on start-up.
+MIGRATIONS = (
+    ("days", "mood", "INTEGER CHECK (mood BETWEEN 1 AND 5)"),
+    ("days", "energy", "INTEGER CHECK (energy BETWEEN 1 AND 5)"),
+)
 
 
 def connect(path):
@@ -79,6 +117,10 @@ def init_db(path):
     conn = connect(path)
     try:
         conn.executescript(SCHEMA)
+        for table, column, decl in MIGRATIONS:
+            have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+            if column not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
         conn.commit()
     finally:
         conn.close()

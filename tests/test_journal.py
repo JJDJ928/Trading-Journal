@@ -126,13 +126,78 @@ def test_daily_tasks_and_journal(jclient):
     assert jclient.get("/api/days").json == []
     r = jclient.put("/api/days/2026-11-16", json={"done": ["gym", "nonsense", "trading"], "journal": " Good day. "})
     assert r.status_code == 200
-    assert r.json == {"date": "2026-11-16", "done": ["trading", "gym"], "journal": "Good day."}
+    assert r.json == {"date": "2026-11-16", "done": ["trading", "gym"], "journal": "Good day.", "mood": None, "energy": None}
     jclient.put("/api/days/2026-11-17", json={"done": ["reading"]})
     assert [d["date"] for d in jclient.get("/api/days").json] == ["2026-11-16", "2026-11-17"]
     # updating replaces, and an emptied day is removed
     jclient.put("/api/days/2026-11-16", json={"done": [], "journal": "Only notes"})
-    assert jclient.get("/api/days").json[0] == {"date": "2026-11-16", "done": [], "journal": "Only notes"}
+    assert jclient.get("/api/days").json[0] == {"date": "2026-11-16", "done": [], "journal": "Only notes",
+                                                 "mood": None, "energy": None}
     jclient.put("/api/days/2026-11-17", json={"done": [], "journal": ""})
     assert len(jclient.get("/api/days").json) == 1
     assert jclient.put("/api/days/not-a-date", json={"done": []}).status_code == 404
     assert jclient.put("/api/days/2026-11-16", json={"done": "gym"}).status_code == 400
+
+
+def test_mood_energy_partial_updates(jclient):
+    jclient.put("/api/days/2026-11-16", json={"done": ["gym"], "journal": "Hi"})
+    r = jclient.put("/api/days/2026-11-16", json={"mood": 4})
+    assert r.json["mood"] == 4 and r.json["done"] == ["gym"] and r.json["journal"] == "Hi"
+    r = jclient.put("/api/days/2026-11-16", json={"energy": "2"})
+    assert r.json["energy"] == 2 and r.json["mood"] == 4
+    assert jclient.put("/api/days/2026-11-16", json={"mood": 9}).status_code == 400
+    # a day with only a mood is kept; clearing everything removes it
+    jclient.put("/api/days/2026-11-17", json={"mood": 3})
+    assert any(d["date"] == "2026-11-17" for d in jclient.get("/api/days").json)
+    jclient.put("/api/days/2026-11-17", json={"mood": None})
+    assert not any(d["date"] == "2026-11-17" for d in jclient.get("/api/days").json)
+
+
+def test_old_database_gets_new_columns(tmp_path):
+    import sqlite3
+    folder = tmp_path / "old"
+    folder.mkdir()
+    conn = sqlite3.connect(folder / "journal.db")
+    conn.execute("CREATE TABLE days (date TEXT PRIMARY KEY, done TEXT NOT NULL DEFAULT '[]', journal TEXT, "
+                 "updated_at TEXT NOT NULL DEFAULT (datetime('now')))")
+    conn.execute("INSERT INTO days (date, done, journal) VALUES ('2026-11-10', '[\"gym\"]', 'kept')")
+    conn.commit()
+    conn.close()
+    c = create_app(str(folder)).test_client()
+    assert c.get("/api/days").json == [{"date": "2026-11-10", "done": ["gym"], "journal": "kept", "mood": None, "energy": None}]
+    assert c.put("/api/days/2026-11-10", json={"mood": 5}).json["mood"] == 5
+
+
+def test_books_and_chapter_recaps(jclient):
+    assert jclient.post("/api/books", json={"title": ""}).status_code == 400
+    b = jclient.post("/api/books", json={"title": "Trading in the Zone", "author": "Mark Douglas", "total_chapters": "11"}).json
+    assert b["status"] == "reading" and b["total_chapters"] == 11
+    r = jclient.put("/api/chapters/2026-11-16", json={"book_id": b["id"], "chapter": 3, "learned": "Think in probabilities."})
+    assert r.status_code == 200 and r.json["chapter"] == 3
+    jclient.put("/api/chapters/2026-11-17", json={"book_id": b["id"], "chapter": 4, "learned": "Consistency."})
+    assert [c["chapter"] for c in jclient.get("/api/chapters").json] == [3, 4]
+    # empty recap removes that day
+    jclient.put("/api/chapters/2026-11-17", json={"book_id": b["id"], "chapter": "", "learned": ""})
+    assert len(jclient.get("/api/chapters").json) == 1
+    assert jclient.put("/api/chapters/2026-11-18", json={"book_id": 999, "chapter": 1}).status_code == 404
+    done = jclient.put(f"/api/books/{b['id']}", json={**b, "status": "finished", "finished_on": "2026-11-20"}).json
+    assert done["status"] == "finished" and done["finished_on"] == "2026-11-20"
+    assert jclient.delete(f"/api/books/{b['id']}").status_code == 200
+    assert jclient.get("/api/chapters").json == []
+
+
+def test_wins_with_photo(jclient, tmp_path):
+    bad = jclient.post("/api/wins", data={"title": "", "date": "x"}, content_type="multipart/form-data")
+    assert bad.status_code == 400 and {"title", "date"} <= set(bad.json["fields"])
+    w = jclient.post("/api/wins", data={"title": "First payout", "date": "2026-11-16", "category": "trading",
+                                        "note": "$2,000", "photo": [(io.BytesIO(make_png()), "p.png")]},
+                     content_type="multipart/form-data").json
+    assert w["category"] == "trading" and w["photo"]
+    assert jclient.get(w["photo"]).status_code == 200
+    r = jclient.put(f"/api/wins/{w['id']}", data={"title": "First payout!", "date": "2026-11-16",
+                                                   "category": "trading", "remove_photo": "1"},
+                    content_type="multipart/form-data").json
+    assert r["title"] == "First payout!" and r["photo"] is None
+    assert os.listdir(tmp_path / "journal" / "screenshots") == []
+    assert jclient.delete(f"/api/wins/{w['id']}").status_code == 200
+    assert jclient.get("/api/wins").json == []

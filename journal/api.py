@@ -141,7 +141,27 @@ DAILY_TASKS = ("trading", "reading", "gym")
 
 
 def day_json(row):
-    return {"date": row["date"], "done": json.loads(row["done"] or "[]"), "journal": row["journal"] or ""}
+    return {"date": row["date"], "done": json.loads(row["done"] or "[]"), "journal": row["journal"] or "",
+            "mood": row["mood"], "energy": row["energy"]}
+
+
+def check_date(value, label="Date"):
+    try:
+        return datetime.strptime(str(value or ""), "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        raise ValidationError({"date": f"{label} isn't a valid date."})
+
+
+def scale(value, name, label):
+    if value in (None, "", 0, "0"):
+        return None
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        n = 0
+    if not 1 <= n <= 5:
+        raise ValidationError({name: f"{label} must be 1 to 5."})
+    return n
 
 
 @bp.get("/days")
@@ -152,27 +172,230 @@ def list_days():
 
 @bp.put("/days/<date>")
 def put_day(date):
+    """Update only the fields sent (done, journal, mood, energy); an emptied day is removed."""
     try:
         datetime.strptime(date, "%Y-%m-%d")
     except ValueError:
         raise NotFound("That isn't a valid date.")
     data = body()
-    done = data.get("done") or []
-    if not isinstance(done, list):
-        raise ValidationError({"done": "Tasks must be a list."})
-    done = [t for t in DAILY_TASKS if t in done]
-    journal = str(data.get("journal") or "").strip()
-    if len(journal) > 20000:
-        raise ValidationError({"journal": "Journal entry is too long."})
     db = get_db()
-    if not done and not journal:
+    row = db.execute("SELECT * FROM days WHERE date = ?", (date,)).fetchone()
+    cur = day_json(row) if row else {"done": [], "journal": "", "mood": None, "energy": None}
+    if "done" in data:
+        done = data.get("done") or []
+        if not isinstance(done, list):
+            raise ValidationError({"done": "Tasks must be a list."})
+        cur["done"] = [t for t in DAILY_TASKS if t in done]
+    if "journal" in data:
+        cur["journal"] = str(data.get("journal") or "").strip()
+        if len(cur["journal"]) > 20000:
+            raise ValidationError({"journal": "Journal entry is too long."})
+    if "mood" in data:
+        cur["mood"] = scale(data.get("mood"), "mood", "Mood")
+    if "energy" in data:
+        cur["energy"] = scale(data.get("energy"), "energy", "Energy")
+    if not cur["done"] and not cur["journal"] and cur["mood"] is None and cur["energy"] is None:
         db.execute("DELETE FROM days WHERE date = ?", (date,))
     else:
-        db.execute("INSERT INTO days (date, done, journal) VALUES (?, ?, ?) ON CONFLICT(date) DO UPDATE SET "
-                   "done = excluded.done, journal = excluded.journal, updated_at = datetime('now')",
-                   (date, json.dumps(done), journal or None))
+        db.execute("INSERT INTO days (date, done, journal, mood, energy) VALUES (?, ?, ?, ?, ?) "
+                   "ON CONFLICT(date) DO UPDATE SET done = excluded.done, journal = excluded.journal, "
+                   "mood = excluded.mood, energy = excluded.energy, updated_at = datetime('now')",
+                   (date, json.dumps(cur["done"]), cur["journal"] or None, cur["mood"], cur["energy"]))
     db.commit()
-    return jsonify({"date": date, "done": done, "journal": journal})
+    return jsonify({"date": date, **{k: cur[k] for k in ("done", "journal", "mood", "energy")}})
+
+
+# ---------------------------------------------------------------- reading
+
+def book_json(row):
+    return {"id": row["id"], "title": row["title"], "author": row["author"],
+            "total_chapters": row["total_chapters"], "status": row["status"], "finished_on": row["finished_on"]}
+
+
+def read_book(data):
+    f = Form(data)
+    total = f.number("total_chapters", "Number of chapters", positive=True)
+    values = {
+        "title": f.text("title", "Title", required=True, max_len=150),
+        "author": f.text("author", "Author", max_len=100),
+        "total_chapters": int(total) if total is not None else None,
+        "status": f.choice("status", "Status", ("reading", "finished"), "reading"),
+        "finished_on": None,
+    }
+    if values["status"] == "finished":
+        raw = data.get("finished_on") or datetime.now().strftime("%Y-%m-%d")
+        try:
+            values["finished_on"] = check_date(raw, "Finished date")
+        except ValidationError as err:
+            f.errors["finished_on"] = err.errors["date"]
+    f.check()
+    return values
+
+
+def load_book(book_id):
+    row = get_db().execute("SELECT * FROM books WHERE id = ?", (book_id,)).fetchone()
+    if row is None:
+        raise NotFound("That book no longer exists.")
+    return row
+
+
+@bp.get("/books")
+def list_books():
+    rows = get_db().execute("SELECT * FROM books ORDER BY created_at, id").fetchall()
+    return jsonify([book_json(r) for r in rows])
+
+
+@bp.post("/books")
+def create_book():
+    v = read_book(body())
+    db = get_db()
+    cur = db.execute("INSERT INTO books (title, author, total_chapters, status, finished_on) "
+                     "VALUES (:title, :author, :total_chapters, :status, :finished_on)", v)
+    db.commit()
+    return jsonify(book_json(load_book(cur.lastrowid))), 201
+
+
+@bp.put("/books/<int:book_id>")
+def update_book(book_id):
+    load_book(book_id)
+    v = read_book(body())
+    db = get_db()
+    db.execute("UPDATE books SET title = :title, author = :author, total_chapters = :total_chapters, "
+               "status = :status, finished_on = :finished_on WHERE id = :id", {**v, "id": book_id})
+    db.commit()
+    return jsonify(book_json(load_book(book_id)))
+
+
+@bp.delete("/books/<int:book_id>")
+def delete_book(book_id):
+    load_book(book_id)
+    db = get_db()
+    db.execute("DELETE FROM books WHERE id = ?", (book_id,))
+    db.commit()
+    return jsonify({"deleted": True})
+
+
+def chapter_json(row):
+    return {"date": row["date"], "book_id": row["book_id"], "chapter": row["chapter"], "learned": row["learned"] or ""}
+
+
+@bp.get("/chapters")
+def list_chapters():
+    rows = get_db().execute("SELECT * FROM chapters ORDER BY date").fetchall()
+    return jsonify([chapter_json(r) for r in rows])
+
+
+@bp.put("/chapters/<date>")
+def put_chapter(date):
+    """Save the chapter read on a day and what was learned from it; empty notes remove it."""
+    date = check_date(date)
+    f = Form(body())
+    book_id = f.number("book_id", "Book", required=True)
+    chapter = f.number("chapter", "Chapter", positive=True)
+    learned = f.text("learned", "What you learned", max_len=20000)
+    f.check()
+    db = get_db()
+    load_book(int(book_id))
+    if not learned and chapter is None:
+        db.execute("DELETE FROM chapters WHERE date = ?", (date,))
+        db.commit()
+        return jsonify({"date": date, "deleted": True})
+    db.execute("INSERT INTO chapters (date, book_id, chapter, learned) VALUES (?, ?, ?, ?) "
+               "ON CONFLICT(date) DO UPDATE SET book_id = excluded.book_id, chapter = excluded.chapter, "
+               "learned = excluded.learned, updated_at = datetime('now')",
+               (date, int(book_id), int(chapter) if chapter is not None else None, learned))
+    db.commit()
+    return jsonify(chapter_json(db.execute("SELECT * FROM chapters WHERE date = ?", (date,)).fetchone()))
+
+
+# ---------------------------------------------------------------- wins
+
+def win_json(row):
+    return {"id": row["id"], "date": row["date"], "title": row["title"], "category": row["category"],
+            "note": row["note"] or "", "photo": f"/api/screenshots/{row['photo']}" if row["photo"] else None}
+
+
+def read_win(data):
+    f = Form(data)
+    values = {
+        "title": f.text("title", "Title", required=True, max_len=120),
+        "category": f.choice("category", "Category", ("trading", "fitness", "reading", "personal"), "personal"),
+        "note": f.text("note", "Note", max_len=5000),
+    }
+    try:
+        values["date"] = check_date(data.get("date"))
+    except ValidationError as err:
+        f.errors["date"] = err.errors["date"]
+    f.check()
+    return values
+
+
+def load_win(win_id):
+    row = get_db().execute("SELECT * FROM wins WHERE id = ?", (win_id,)).fetchone()
+    if row is None:
+        raise NotFound("That win no longer exists.")
+    return row
+
+
+@bp.get("/wins")
+def list_wins():
+    rows = get_db().execute("SELECT * FROM wins ORDER BY date DESC, id DESC").fetchall()
+    return jsonify([win_json(r) for r in rows])
+
+
+def _win_photo():
+    images = read_uploads(request.files.getlist("photo"))[:1]
+    return save_files(images)
+
+
+@bp.post("/wins")
+def create_win():
+    v = read_win(body())
+    saved = _win_photo()
+    db = get_db()
+    try:
+        cur = db.execute("INSERT INTO wins (date, title, category, note, photo) VALUES (?, ?, ?, ?, ?)",
+                         (v["date"], v["title"], v["category"], v["note"], saved[0]["filename"] if saved else None))
+        db.commit()
+    except Exception:
+        db.rollback()
+        delete_files([s["filename"] for s in saved])
+        raise
+    return jsonify(win_json(load_win(cur.lastrowid))), 201
+
+
+@bp.put("/wins/<int:win_id>")
+def update_win(win_id):
+    old = load_win(win_id)
+    data = body()
+    v = read_win(data)
+    saved = _win_photo()
+    photo = old["photo"]
+    if saved or data.get("remove_photo") in ("1", "true", True):
+        photo = saved[0]["filename"] if saved else None
+    db = get_db()
+    try:
+        db.execute("UPDATE wins SET date = ?, title = ?, category = ?, note = ?, photo = ? WHERE id = ?",
+                   (v["date"], v["title"], v["category"], v["note"], photo, win_id))
+        db.commit()
+    except Exception:
+        db.rollback()
+        delete_files([s["filename"] for s in saved])
+        raise
+    if old["photo"] and old["photo"] != photo:
+        delete_files([old["photo"]])
+    return jsonify(win_json(load_win(win_id)))
+
+
+@bp.delete("/wins/<int:win_id>")
+def delete_win(win_id):
+    old = load_win(win_id)
+    db = get_db()
+    db.execute("DELETE FROM wins WHERE id = ?", (win_id,))
+    db.commit()
+    if old["photo"]:
+        delete_files([old["photo"]])
+    return jsonify({"deleted": True})
 
 
 # ---------------------------------------------------------------- accounts

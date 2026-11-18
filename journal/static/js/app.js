@@ -2,7 +2,7 @@
 (function () {
   "use strict";
 
-  const state = { accounts: [], trades: [], settings: { name: "Jordi" }, days: {}, daily: { month: null, selected: null }, selectedTrade: null, filters: { q: "", account: "", range: "month" }, accountShow: "recent" };
+  const state = { accounts: [], trades: [], settings: { name: "Jordi" }, days: {}, books: [], chapters: {}, wins: [], reading: { selected: null }, winFilter: "", recapWeek: null, daily: { month: null, selected: null }, selectedTrade: null, filters: { q: "", account: "", range: "month" }, accountShow: "recent" };
   const view = document.getElementById("view");
   const modalRoot = document.getElementById("modal-root");
   let atom = null; // animation running on the current screen
@@ -110,8 +110,10 @@
 
   // ------------------------------------------------------------------ data
   async function loadAll() {
-    const [accounts, trades, settings, days] = await Promise.all([api("GET", "/api/accounts"), api("GET", "/api/trades"), api("GET", "/api/settings"), api("GET", "/api/days")]);
-    Object.assign(state, { accounts, trades, settings, days: Object.fromEntries(days.map((d) => [d.date, d])) });
+    const [accounts, trades, settings, days, books, chapters, wins] = await Promise.all(
+      ["accounts", "trades", "settings", "days", "books", "chapters", "wins"].map((x) => api("GET", "/api/" + x)));
+    Object.assign(state, { accounts, trades, settings, books, wins,
+      days: Object.fromEntries(days.map((d) => [d.date, d])), chapters: Object.fromEntries(chapters.map((c) => [c.date, c])) });
     document.querySelectorAll("[data-name]").forEach((el) => (el.textContent = settings.name));
   }
 
@@ -127,6 +129,9 @@
       renderTrades();
     } else if (page === "accounts") renderAccounts();
     else if (page === "daily") renderDaily();
+    else if (page === "reading") renderReading();
+    else if (page === "wins") renderWins();
+    else if (page === "recap") renderRecap();
     else renderHome();
     view.scrollTop = 0;
   }
@@ -439,7 +444,7 @@
     if (!state.daily.month) state.daily.month = new Date(today.getFullYear(), today.getMonth(), 1);
     if (!state.daily.selected) state.daily.selected = ymd(today);
     view.innerHTML = `
-    <section class="page">
+    <section class="page fit">
       <div class="toolbar">
         <button class="btn" data-month="-1" aria-label="Previous month">‹</button>
         <div class="month-name" id="month-name"></div>
@@ -494,7 +499,7 @@
       const classes = ["day", d.getMonth() !== m.getMonth() ? "out" : "", key === todayKey ? "today" : "", key === state.daily.selected ? "sel" : "",
         complete ? "complete" : past && d.getMonth() === m.getMonth() ? "missed" : "", d > today ? "future" : ""].join(" ");
       html += `<div class="${classes}" data-day="${key}">
-        <div class="n">${d.getDate()}${state.days[key]?.journal ? `<span class="pen" title="Has a journal entry">✎</span>` : ""}</div>
+        <div class="n">${d.getDate()}<span class="marks">${state.days[key]?.journal ? `<span class="pen" title="Has a journal entry">✎</span>` : ""}${state.days[key]?.mood ? `<span class="m" title="Mood: ${MOODS[state.days[key].mood - 1]}">${face(state.days[key].mood, 15)}</span>` : ""}</span></div>
         ${hol ? `<div class="hol">${esc(hol)}</div>` : ""}
         <div class="dots">${tasks.map((t) => `<i class="${done.includes(t) ? "on" : ""}" title="${TASKS[t]}"></i>`).join("")}</div>
       </div>`;
@@ -503,41 +508,408 @@
     el.querySelectorAll("[data-day]").forEach((c) => c.addEventListener("click", () => { state.daily.selected = c.dataset.day; paintCalendar(); paintDay(); }));
   }
 
-  let journalTimer = null;
+  // ------------------------------------------------------------------ mood + energy
+  const MOODS = ["Awful", "Low", "Okay", "Good", "Great"];
+  function face(n, size = 26) {
+    const curve = (n - 3) * 1.9; // frown -> smile
+    return `<svg class="face" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9.5"/><circle cx="8.8" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15.2" cy="10" r="1" fill="currentColor" stroke="none"/>
+      <path d="M8 ${15 - curve / 3} Q12 ${15 + curve} 16 ${15 - curve / 3}"/></svg>`;
+  }
+  const energyBars = (n, cls = "") => `<span class="ebars ${cls}">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= (n || 0) ? "on" : ""}" style="height:${30 + i * 14}%"></i>`).join("")}</span>`;
+
+  // ------------------------------------------------------------------ daily panel (tasks, mood, reading recap, journal)
+  let journalTimer = null, recapTimer = null;
   function paintDay() {
     const el = document.getElementById("day-panel");
     if (!el) return;
-    clearTimeout(journalTimer);
+    clearTimeout(journalTimer); clearTimeout(recapTimer);
     const key = state.daily.selected, date = fromYmd(key), today = startOfDay(new Date());
     const tasks = tasksFor(date), hol = holidayName(date), future = date > today;
     const weekend = date.getDay() === 0 || date.getDay() === 6;
-    const entry = state.days[key] || { done: [], journal: "" };
+    const entry = state.days[key] || { done: [], journal: "", mood: null, energy: null };
+    const chap = state.chapters[key];
+    const reading = state.books.filter((b) => b.status === "reading");
+    const book = chap ? state.books.find((b) => b.id === chap.book_id) : reading[reading.length - 1];
+    const nextChapter = (b) => { const prev = Object.values(state.chapters).filter((c) => c.book_id === b.id && c.date < key && c.chapter); return prev.length ? Math.max(...prev.map((c) => c.chapter)) + 1 : 1; };
+    const dis = future ? "disabled" : "";
+
+    let recap;
+    if (!book) recap = `<div class="recap-empty">No book yet. <button class="btn small" data-act="add-book">+ Add the book you're reading</button></div>`;
+    else recap = `
+      <div class="recap-row">
+        <select id="recap-book" ${dis}>${state.books.filter((b) => b.status === "reading" || b.id === book.id).map((b) => `<option value="${b.id}" ${b.id === book.id ? "selected" : ""}>${esc(b.title)}</option>`).join("")}</select>
+        <label class="chap">Chapter <input id="recap-chapter" inputmode="numeric" value="${chap?.chapter ?? (future ? "" : nextChapter(book))}" ${dis}></label>
+      </div>
+      <textarea id="recap-learned" class="day-journal recap" placeholder="${future ? "This day hasn't happened yet." : "What did you learn from today's chapter?"}" ${dis}>${esc(chap?.learned || "")}</textarea>`;
+
     el.innerHTML = `
       <div class="head"><div>
         <div class="sym">${date.toLocaleDateString("en-US", { weekday: "long" })}</div>
         <div class="muted" style="font-size:13px;margin-top:2px">${date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}${hol ? ` · ${esc(hol)}, market closed` : weekend ? " · Weekend" : ""}</div>
       </div><div class="day-count" id="day-count"></div></div>
       <div class="checks">${tasks.map((t) => `
-        <label class="check ${future ? "off" : ""}"><input type="checkbox" data-task="${t}" ${entry.done.includes(t) ? "checked" : ""} ${future ? "disabled" : ""}><span class="box"></span><span>${TASKS[t]}</span></label>`).join("")}
+        <label class="check ${future ? "off" : ""}"><input type="checkbox" data-task="${t}" ${entry.done.includes(t) ? "checked" : ""} ${dis}><span class="box"></span><span>${TASKS[t]}</span></label>`).join("")}
       </div>
-      <div class="ph" style="margin:6px 0 -8px">Journal <span id="journal-status"></span></div>
-      <textarea id="day-journal" class="day-journal" placeholder="${future ? "This day hasn't happened yet." : "How did today go? What did you read, how was the gym, how did you feel?"}" ${future ? "disabled" : ""}>${esc(entry.journal)}</textarea>`;
+      <div class="feel ${future ? "off" : ""}">
+        <div><div class="k">Mood <span id="mood-label">${entry.mood ? MOODS[entry.mood - 1] : ""}</span></div>
+          <div class="moods">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-mood="${n}" class="${entry.mood === n ? "on" : ""}" title="${MOODS[n - 1]}" ${dis}>${face(n)}</button>`).join("")}</div></div>
+        <div><div class="k">Energy <span id="energy-label">${entry.energy ? entry.energy + " / 5" : ""}</span></div>
+          <div class="energy">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-energy="${n}" class="${(entry.energy || 0) >= n ? "on" : ""}" title="${n} / 5" ${dis}><i style="height:${30 + n * 14}%"></i></button>`).join("")}</div></div>
+      </div>
+      <div class="ph section-h">Reading recap <span id="recap-status"></span></div>
+      ${recap}
+      <div class="ph section-h">Journal <span id="journal-status"></span></div>
+      <textarea id="day-journal" class="day-journal" placeholder="${future ? "This day hasn't happened yet." : "How did today go? How was the gym, how did you feel?"}" ${dis}>${esc(entry.journal)}</textarea>`;
+
     const count = () => { const n = tasks.filter((t) => dayDone(key).includes(t)).length; const c = document.getElementById("day-count"); c.textContent = `${n} / ${tasks.length}`; c.classList.toggle("up", n === tasks.length); };
     count();
-    const area = el.querySelector("#day-journal"), status = el.querySelector("#journal-status");
-    const save = async () => {
-      clearTimeout(journalTimer);
-      const done = [...el.querySelectorAll("[data-task]:checked")].map((c) => c.dataset.task);
+    const saveDay = async (fields, statusEl) => {
       try {
-        const saved = await api("PUT", `/api/days/${key}`, { done, journal: area.value });
-        if (saved.done.length || saved.journal) state.days[key] = saved; else delete state.days[key];
-        status.textContent = "Saved";
+        const saved = await api("PUT", `/api/days/${key}`, fields);
+        if (saved.done.length || saved.journal || saved.mood || saved.energy) state.days[key] = saved; else delete state.days[key];
+        if (statusEl) statusEl.textContent = "Saved";
         count(); paintCalendar(); paintDailyStats();
-      } catch (err) { status.textContent = ""; toast(err.message, true); }
+        return saved;
+      } catch (err) { if (statusEl) statusEl.textContent = ""; toast(err.message, true); }
     };
-    el.querySelectorAll("[data-task]").forEach((c) => c.addEventListener("change", save));
-    area.addEventListener("input", () => { status.textContent = "Saving…"; clearTimeout(journalTimer); journalTimer = setTimeout(save, 700); });
-    area.addEventListener("blur", () => { if (status.textContent === "Saving…") save(); });
+    const cur = () => state.days[key] || { done: [], mood: null, energy: null };
+
+    el.querySelectorAll("[data-task]").forEach((c) => c.addEventListener("change", () =>
+      saveDay({ done: [...el.querySelectorAll("[data-task]:checked")].map((x) => x.dataset.task) })));
+    el.querySelectorAll("[data-mood]").forEach((b) => b.addEventListener("click", async () => {
+      const n = Number(b.dataset.mood), mood = cur().mood === n ? null : n;
+      el.querySelectorAll("[data-mood]").forEach((x) => x.classList.toggle("on", Number(x.dataset.mood) === mood));
+      el.querySelector("#mood-label").textContent = mood ? MOODS[mood - 1] : "";
+      await saveDay({ mood });
+    }));
+    el.querySelectorAll("[data-energy]").forEach((b) => b.addEventListener("click", async () => {
+      const n = Number(b.dataset.energy), energy = cur().energy === n ? null : n;
+      el.querySelectorAll("[data-energy]").forEach((x) => x.classList.toggle("on", Number(x.dataset.energy) <= (energy || 0)));
+      el.querySelector("#energy-label").textContent = energy ? energy + " / 5" : "";
+      await saveDay({ energy });
+    }));
+
+    const area = el.querySelector("#day-journal"), jstatus = el.querySelector("#journal-status");
+    const saveJournal = () => { clearTimeout(journalTimer); return saveDay({ journal: area.value }, jstatus); };
+    area.addEventListener("input", () => { jstatus.textContent = "Saving…"; clearTimeout(journalTimer); journalTimer = setTimeout(saveJournal, 700); });
+    area.addEventListener("blur", () => { if (jstatus.textContent === "Saving…") saveJournal(); });
+
+    const learned = el.querySelector("#recap-learned");
+    if (learned) {
+      const rstatus = el.querySelector("#recap-status"), bookSel = el.querySelector("#recap-book"), chapIn = el.querySelector("#recap-chapter");
+      const saveRecap = async () => {
+        clearTimeout(recapTimer);
+        try {
+          const res = await api("PUT", `/api/chapters/${key}`, { book_id: bookSel.value, chapter: chapIn.value, learned: learned.value });
+          if (res.deleted) delete state.chapters[key]; else state.chapters[key] = res;
+          rstatus.textContent = "Saved";
+          // writing a recap counts as today's reading
+          if (!res.deleted && res.learned && tasks.includes("reading") && !dayDone(key).includes("reading")) {
+            el.querySelector('[data-task="reading"]').checked = true;
+            await saveDay({ done: [...dayDone(key), "reading"] });
+          }
+        } catch (err) { rstatus.textContent = ""; toast(err.message, true); }
+      };
+      const later = () => { rstatus.textContent = "Saving…"; clearTimeout(recapTimer); recapTimer = setTimeout(saveRecap, 700); };
+      learned.addEventListener("input", later);
+      learned.addEventListener("blur", () => { if (rstatus.textContent === "Saving…") saveRecap(); });
+      chapIn.addEventListener("change", () => { if (learned.value.trim() || state.chapters[key]) saveRecap(); });
+      bookSel.addEventListener("change", () => {
+        const b = state.books.find((x) => x.id === Number(bookSel.value));
+        if (!state.chapters[key]) chapIn.value = nextChapter(b);
+        if (learned.value.trim() || state.chapters[key]) saveRecap();
+      });
+    }
+  }
+
+  // ------------------------------------------------------------------ reading tab
+  function bookProgress(b) {
+    const recaps = Object.values(state.chapters).filter((c) => c.book_id === b.id).sort((x, y) => (x.date < y.date ? -1 : 1));
+    const read = new Set(recaps.map((c) => c.chapter).filter(Boolean)).size;
+    return { recaps, read, frac: b.total_chapters ? Math.min(1, read / b.total_chapters) : null, last: recaps[recaps.length - 1]?.date };
+  }
+
+  function renderReading() {
+    setTitle("Reading");
+    const reading = state.books.filter((b) => b.status === "reading"), finished = state.books.filter((b) => b.status === "finished");
+    if (!state.reading.selected || !state.books.some((b) => b.id === state.reading.selected)) state.reading.selected = (reading[reading.length - 1] || state.books[0])?.id;
+    const totalRecaps = Object.keys(state.chapters).length;
+    const bookCard = (b) => {
+      const p = bookProgress(b);
+      return `<div class="book ${b.id === state.reading.selected ? "sel" : ""}" data-book="${b.id}">
+        <div class="cover">${esc(b.title.slice(0, 1).toUpperCase())}</div>
+        <div class="info"><div class="t">${esc(b.title)}</div><div class="a">${esc(b.author || "")}${b.status === "finished" && b.finished_on ? `${b.author ? " · " : ""}Finished ${fromYmd(b.finished_on).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}</div>
+          ${b.status === "reading" ? `<div class="barline"><i style="width:${(p.frac ?? 0) * 100}%"></i></div><div class="a">${p.read}${b.total_chapters ? ` of ${b.total_chapters}` : ""} chapters</div>` : `<div class="a">${p.read} chapter recap${p.read === 1 ? "" : "s"}</div>`}
+        </div></div>`;
+    };
+    view.innerHTML = `
+    <section class="page">
+      <div class="toolbar">
+        ${state.books.length ? `<div class="summary-line" style="margin-left:0"><b>${reading.length}</b> reading &nbsp;·&nbsp; <b>${finished.length}</b> finished &nbsp;·&nbsp; <b>${totalRecaps}</b> chapter recap${totalRecaps === 1 ? "" : "s"}</div>` : ""}
+        <div class="grow"></div>
+        <button class="btn primary" data-act="add-book">+ Add book</button>
+      </div>
+      ${state.books.length ? `
+      <div class="split reading-split">
+        <div class="panel books">
+          ${reading.length ? `<div class="ph">Currently reading</div>${reading.map(bookCard).join("")}` : ""}
+          ${finished.length ? `<div class="ph" style="margin-top:${reading.length ? 22 : 0}px">Finished</div>${finished.map(bookCard).join("")}` : ""}
+        </div>
+        <div class="panel" id="recaps"></div>
+      </div>` : `<div class="panel" style="flex:1"><div class="empty"><h3>Start your reading log</h3><p>Add the book you're reading. Each day in the Daily tab you'll write what you learned from that day's chapter, and it all collects here.</p><button class="btn primary" data-act="add-book">+ Add book</button></div></div>`}
+    </section>`;
+    view.querySelectorAll("[data-book]").forEach((c) => c.addEventListener("click", () => { state.reading.selected = Number(c.dataset.book); renderReading(); }));
+    paintRecaps();
+  }
+
+  function paintRecaps() {
+    const el = document.getElementById("recaps");
+    const b = state.books.find((x) => x.id === state.reading.selected);
+    if (!el || !b) return;
+    const p = bookProgress(b);
+    el.innerHTML = `
+      <div class="detail-head">
+        <div><div class="sym" style="font-size:24px;font-weight:600;letter-spacing:-0.02em">${esc(b.title)}</div><div class="muted" style="font-size:13px;margin-top:2px">${esc(b.author || "")}</div></div>
+        <div style="display:flex;gap:8px">${b.status === "reading" ? `<button class="btn small" data-finish>Mark finished</button>` : ""}<button class="btn small" data-edit-book>Edit</button></div>
+      </div>
+      <div class="ph" style="margin-top:22px">What you learned <span>${p.recaps.length} recap${p.recaps.length === 1 ? "" : "s"}</span></div>
+      ${p.recaps.length ? `<div class="timeline">${p.recaps.slice().reverse().map((c) => `
+        <div class="tl" data-goto="${c.date}">
+          <div class="when"><b>${c.chapter ? "Chapter " + c.chapter : "Chapter"}</b><span>${fromYmd(c.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span></div>
+          <div class="what">${c.learned ? esc(c.learned) : `<span class="muted">No notes</span>`}</div>
+        </div>`).join("")}</div>`
+        : `<div class="empty" style="height:auto;padding:50px 10px"><p>No recaps yet. Open today in the <a href="#/daily">Daily</a> tab and write what you learned from the chapter.</p></div>`}`;
+    el.querySelector("[data-edit-book]").addEventListener("click", () => bookForm(b));
+    el.querySelector("[data-finish]")?.addEventListener("click", async () => {
+      const saved = await api("PUT", `/api/books/${b.id}`, { ...b, status: "finished", finished_on: ymd(new Date()) });
+      state.books = state.books.map((x) => (x.id === saved.id ? saved : x));
+      toast("Book finished. Nice work!");
+      renderReading();
+    });
+    el.querySelectorAll("[data-goto]").forEach((r) => r.addEventListener("click", () => {
+      const d = fromYmd(r.dataset.goto);
+      state.daily.selected = r.dataset.goto; state.daily.month = new Date(d.getFullYear(), d.getMonth(), 1);
+      location.hash = "#/daily";
+    }));
+  }
+
+  function bookForm(b) {
+    const editing = !!b;
+    let status = b?.status || "reading";
+    const m = openModal(`
+      <h2>${editing ? "Edit book" : "Add a book"} <small data-close>✕</small></h2>
+      <form class="form" autocomplete="off">
+        <div class="f w4"><label>Title</label><input name="title" placeholder="Trading in the Zone" value="${esc(b?.title || "")}"></div>
+        <div class="f w2"><label>Author</label><input name="author" placeholder="Mark Douglas" value="${esc(b?.author || "")}"></div>
+        <div class="f w2"><label>Number of chapters</label><input name="total_chapters" inputmode="numeric" placeholder="Optional" value="${b?.total_chapters ?? ""}"></div>
+        ${editing ? `<div class="f w4"><label>Status</label><div class="seg" data-field="status"><span data-status="reading">Reading</span><span data-status="finished">Finished</span></div></div>` : ""}
+      </form>
+      <div class="form-error"></div>
+      <div class="actions">${editing ? `<button class="btn danger" data-del>Delete</button>` : ""}<div class="grow"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>${editing ? "Save changes" : "Add book"}</button></div>`, 520);
+    const el = m.el;
+    const paint = () => el.querySelectorAll("[data-status]").forEach((s) => s.classList.toggle("on", s.dataset.status === status));
+    el.querySelectorAll("[data-status]").forEach((s) => s.addEventListener("click", () => { status = s.dataset.status; paint(); }));
+    paint();
+    const submit = async () => {
+      const data = Object.fromEntries(new FormData(el.querySelector("form")));
+      data.status = status;
+      if (status === "finished") data.finished_on = b?.finished_on || ymd(new Date());
+      try {
+        const saved = await api(editing ? "PUT" : "POST", editing ? `/api/books/${b.id}` : "/api/books", data);
+        state.books = state.books.filter((x) => x.id !== saved.id).concat(saved).sort((x, y) => x.id - y.id);
+        state.reading.selected = saved.id;
+        m.close(); toast(editing ? "Book updated" : "Book added"); rerender();
+      } catch (err) { showErrors(el, err); }
+    };
+    el.querySelector("[data-save]").addEventListener("click", submit);
+    el.querySelector("form").addEventListener("submit", (e) => { e.preventDefault(); submit(); });
+    el.querySelector("[data-del]")?.addEventListener("click", () => {
+      const n = Object.values(state.chapters).filter((c) => c.book_id === b.id).length;
+      m.close();
+      confirmBox("Delete this book?", `${esc(b.title)} and its ${n} chapter recap${n === 1 ? "" : "s"} will be deleted. This can't be undone.`, "Delete book", async () => {
+        await api("DELETE", `/api/books/${b.id}`);
+        state.books = state.books.filter((x) => x.id !== b.id);
+        for (const [k, c] of Object.entries(state.chapters)) if (c.book_id === b.id) delete state.chapters[k];
+        toast("Book deleted"); rerender();
+      });
+    });
+    el.querySelector("[name=title]").focus();
+  }
+
+  // ------------------------------------------------------------------ wins tab
+  const WIN_CATS = { trading: "Trading", fitness: "Fitness", reading: "Reading", personal: "Personal" };
+  function renderWins() {
+    setTitle("Wins");
+    const cat = state.winFilter;
+    const list = state.wins.filter((w) => !cat || w.category === cat);
+    view.innerHTML = `
+    <section class="page">
+      <div class="toolbar">
+        <div class="chips">${[["", "All"], ...Object.entries(WIN_CATS)].map(([v, l]) => `<button class="chip ${cat === v ? "on" : ""}" data-cat="${v}">${l}${v ? "" : ` <span>${state.wins.length}</span>`}</button>`).join("")}</div>
+        <div class="grow"></div>
+        <button class="btn primary" data-act="add-win">+ Add win</button>
+      </div>
+      ${list.length ? `<div class="wins">${list.map((w) => `
+        <div class="panel win ${w.photo ? "has-photo" : ""}" data-win="${w.id}">
+          ${w.photo ? `<div class="ph-img"><img src="${w.photo}" alt=""></div>` : ""}
+          <div class="body">
+            <div class="row1"><span class="pill n">${WIN_CATS[w.category].toUpperCase()}</span><span class="d">${fromYmd(w.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span></div>
+            <div class="t">${esc(w.title)}</div>
+            ${w.note ? `<div class="n">${esc(w.note)}</div>` : ""}
+          </div>
+        </div>`).join("")}</div>`
+        : `<div class="panel" style="flex:1"><div class="empty"><h3>${state.wins.length ? "No wins in this category yet" : "Your wins wall"}</h3><p>${state.wins.length ? "Add one, or pick another category." : "Save the moments worth remembering: your first payout, passing an evaluation, a gym streak, finishing a book. Scroll back here on hard days."}</p><button class="btn primary" data-act="add-win">+ Add win</button></div></div>`}
+    </section>`;
+    view.querySelectorAll("[data-cat]").forEach((b) => b.addEventListener("click", () => { state.winFilter = b.dataset.cat; renderWins(); }));
+    view.querySelectorAll("[data-win]").forEach((c) => c.addEventListener("click", () => winForm(state.wins.find((w) => w.id === Number(c.dataset.win)))));
+  }
+
+  function winForm(w) {
+    const editing = !!w;
+    let category = w?.category || state.winFilter || "trading", photoFile = null, removePhoto = false;
+    const m = openModal(`
+      <h2>${editing ? "Edit win" : "Add a win"} <small data-close>✕</small></h2>
+      <form class="form" autocomplete="off">
+        <div class="f w4"><label>What did you achieve?</label><input name="title" placeholder="First payout from Apex" value="${esc(w?.title || "")}"></div>
+        <div class="f w2"><label>Date</label><input type="date" name="date" value="${w?.date || ymd(new Date())}"></div>
+        <div class="f w2"><label>Category</label><select name="category">${Object.entries(WIN_CATS).map(([v, l]) => `<option value="${v}" ${category === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="f w4"><label>Note</label><textarea name="note" placeholder="How it felt, what it took to get here">${esc(w?.note || "")}</textarea></div>
+        <div class="f w4" data-field="photo"><label>Photo</label><div class="shots-row" id="win-photo"></div>
+          <div class="drop" id="drop">Drop a photo here, paste it, or click to upload</div>
+          <input type="file" id="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></div>
+      </form>
+      <div class="form-error"></div>
+      <div class="actions">${editing ? `<button class="btn danger" data-del>Delete</button>` : ""}<div class="grow"></div><button class="btn" data-close>Cancel</button><button class="btn primary" data-save>${editing ? "Save changes" : "Save win"}</button></div>`, 560);
+    const el = m.el, box = el.querySelector("#win-photo");
+    const paintPhoto = () => {
+      const src = photoFile ? URL.createObjectURL(photoFile) : !removePhoto && w?.photo;
+      box.innerHTML = src ? `<div class="s"><img src="${src}" alt=""><button type="button">✕</button></div>` : "";
+      box.querySelector("button")?.addEventListener("click", () => { photoFile = null; removePhoto = true; paintPhoto(); });
+    };
+    const take = (files) => { const f = [...files].find((x) => x.type.startsWith("image/")); if (f) { photoFile = f; removePhoto = false; paintPhoto(); } };
+    paintPhoto();
+    const drop = el.querySelector("#drop"), file = el.querySelector("#file");
+    drop.addEventListener("click", () => file.click());
+    file.addEventListener("change", () => { take(file.files); file.value = ""; });
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+    drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); take(e.dataTransfer.files); });
+    m.onPaste((e) => { if (e.clipboardData?.files?.length) { e.preventDefault(); take(e.clipboardData.files); } });
+    const submit = async () => {
+      const fd = new FormData(el.querySelector("form"));
+      if (photoFile) fd.append("photo", photoFile, photoFile.name || "photo.png");
+      if (removePhoto) fd.set("remove_photo", "1");
+      try {
+        const saved = await api(editing ? "PUT" : "POST", editing ? `/api/wins/${w.id}` : "/api/wins", fd);
+        state.wins = state.wins.filter((x) => x.id !== saved.id).concat(saved).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id));
+        m.close(); toast(editing ? "Win updated" : "Win saved. Well done!"); rerender();
+      } catch (err) { showErrors(el, err); }
+    };
+    el.querySelector("[data-save]").addEventListener("click", submit);
+    el.querySelector("form").addEventListener("submit", (e) => { e.preventDefault(); submit(); });
+    el.querySelector("[data-del]")?.addEventListener("click", () => {
+      m.close();
+      confirmBox("Delete this win?", `${esc(w.title)} will be removed from your wall. This can't be undone.`, "Delete win", async () => {
+        await api("DELETE", `/api/wins/${w.id}`);
+        state.wins = state.wins.filter((x) => x.id !== w.id);
+        toast("Win deleted"); rerender();
+      });
+    });
+    el.querySelector("[name=title]").focus();
+  }
+
+  // ------------------------------------------------------------------ weekly recap tab
+  function weekStart(d) { const s = startOfDay(d); s.setDate(s.getDate() - ((s.getDay() + 6) % 7)); return s; }
+
+  function renderRecap() {
+    setTitle("Weekly recap");
+    if (!state.recapWeek) state.recapWeek = weekStart(new Date());
+    const start = state.recapWeek, end = new Date(start); end.setDate(start.getDate() + 6);
+    const today = startOfDay(new Date());
+    const days = [...Array(7)].map((_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
+    const inWeek = (s) => { const d = parseTime(s); return d >= start && d < new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1); };
+    const trades = state.trades.filter((t) => inWeek(t.traded_at)), ts = stats(trades);
+    const keys = days.map(ymd), counted = days.filter((d) => d <= today);
+    const gym = keys.filter((k) => dayDone(k).includes("gym")).length;
+    const chapters = keys.map((k) => state.chapters[k]).filter(Boolean);
+    const moods = keys.map((k) => state.days[k]?.mood).filter(Boolean), energies = keys.map((k) => state.days[k]?.energy).filter(Boolean);
+    const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+    const wins = state.wins.filter((w) => keys.includes(w.date));
+    const complete = counted.filter((d) => dayComplete(d)).length;
+    const sameWeek = ymd(start) === ymd(weekStart(new Date()));
+    const mon = (d) => d.toLocaleDateString("en-US", { month: "short" });
+    const label = `${mon(start)} ${start.getDate()} – ${start.getMonth() === end.getMonth() ? "" : mon(end) + " "}${end.getDate()}, ${end.getFullYear()}`;
+
+    // best day by P&L, and the journal entry from the best-mood day
+    const pnlByDay = keys.map((k) => trades.filter((t) => t.traded_at.startsWith(k)).reduce((s, t) => s + t.pnl, 0));
+    const tradedDays = keys.filter((k) => trades.some((t) => t.traded_at.startsWith(k)));
+    const bestIdx = tradedDays.length ? keys.indexOf(tradedDays.reduce((a, b) => (pnlByDay[keys.indexOf(b)] > pnlByDay[keys.indexOf(a)] ? b : a))) : -1;
+    const journalDays = keys.filter((k) => state.days[k]?.journal);
+    const quoteKey = journalDays.length ? journalDays.reduce((a, b) => ((state.days[b].mood || 0) > (state.days[a].mood || 0) ? b : a)) : null;
+
+    // all-time insight: how energy relates to P&L
+    const byEnergy = (lo, hi) => {
+      const ks = Object.values(state.days).filter((d) => d.energy >= lo && d.energy <= hi).map((d) => d.date);
+      const t = state.trades.filter((x) => ks.includes(x.traded_at.slice(0, 10)));
+      const n = new Set(t.map((x) => x.traded_at.slice(0, 10))).size;
+      return n ? { per: t.reduce((s, x) => s + x.pnl, 0) / n, n } : null;
+    };
+    const hiE = byEnergy(4, 5), loE = byEnergy(1, 2);
+
+    view.innerHTML = `
+    <section class="page">
+      <div class="toolbar">
+        <button class="btn" data-week="-1" aria-label="Previous week">‹</button>
+        <div class="month-name" style="min-width:230px">${label}</div>
+        <button class="btn" data-week="1" aria-label="Next week" ${sameWeek ? "disabled" : ""}>›</button>
+        ${sameWeek ? "" : `<button class="btn" data-week="0">This week</button>`}
+        <div class="grow"></div>
+        <div class="summary-line">${complete} of ${counted.length || 7} day${(counted.length || 7) === 1 ? "" : "s"} with every task done</div>
+      </div>
+      <div class="stats">
+        <div class="panel kpi"><div class="lbl">P&amp;L this week</div><div class="val ${cls(ts.net)}">${money(ts.net, true)}</div><div class="sub">${plural(ts.n, "trade")}${ts.winRate == null ? "" : " · " + pct(ts.winRate) + " win rate"}</div></div>
+        <div class="panel kpi"><div class="lbl">Gym</div><div class="val">${gym}<span class="of"> / 7 days</span></div><div class="sub">${gym >= 5 ? "Strong week" : gym ? "Keep showing up" : "No sessions logged"}</div></div>
+        <div class="panel kpi"><div class="lbl">Reading</div><div class="val">${chapters.length}<span class="of"> chapter${chapters.length === 1 ? "" : "s"}</span></div><div class="sub">${[...new Set(chapters.map((c) => state.books.find((b) => b.id === c.book_id)?.title).filter(Boolean))].map(esc).join(", ") || "No recaps yet"}</div></div>
+        <div class="panel kpi"><div class="lbl">Mood &amp; energy</div><div class="val mood-val">${avg(moods) ? face(Math.round(avg(moods)), 30) + `<span>${MOODS[Math.round(avg(moods)) - 1]}</span>` : "—"}</div><div class="sub">${avg(energies) ? "Average energy " + avg(energies).toFixed(1) + " / 5" : "No check-ins yet"}</div></div>
+      </div>
+      <div class="panel week-strip">${days.map((d, i) => {
+        const k = keys[i], e = state.days[k], future = d > today, tasks = tasksFor(d), done = dayDone(k);
+        return `<div class="wd ${future ? "future" : ""} ${dayComplete(d) && !future ? "complete" : ""} ${k === ymd(today) ? "today" : ""}" data-goto="${k}">
+          <div class="dn">${d.toLocaleDateString("en-US", { weekday: "short" })} <span>${d.getDate()}</span></div>
+          <div class="mood">${e?.mood ? face(e.mood, 30) : `<span class="none">${future ? "" : "–"}</span>`}</div>
+          ${energyBars(e?.energy, "sm")}
+          <div class="dots">${tasks.map((t) => `<i class="${done.includes(t) ? "on" : ""}" title="${TASKS[t]}"></i>`).join("")}</div>
+          <div class="pl ${cls(pnlByDay[i])}">${trades.some((t) => t.traded_at.startsWith(k)) ? money(pnlByDay[i], true) : ""}</div>
+        </div>`;
+      }).join("")}</div>
+      <div class="recap-cols">
+        <div class="panel">
+          <div class="ph">What you learned</div>
+          ${chapters.length ? `<div class="timeline">${chapters.map((c) => `<div class="tl" data-goto="${c.date}"><div class="when"><b>${esc(state.books.find((b) => b.id === c.book_id)?.title || "")}${c.chapter ? " · Ch. " + c.chapter : ""}</b><span>${fromYmd(c.date).toLocaleDateString("en-US", { weekday: "long" })}</span></div><div class="what">${esc(c.learned) || `<span class="muted">No notes</span>`}</div></div>`).join("")}</div>`
+            : `<div class="empty" style="height:auto;padding:30px 10px"><p>No chapter recaps this week.</p></div>`}
+        </div>
+        <div class="panel highlights">
+          <div class="ph">Highlights</div>
+          ${bestIdx >= 0 ? `<div class="hl"><div class="k">Best trading day</div><div class="v">${days[bestIdx].toLocaleDateString("en-US", { weekday: "long" })} <span class="${cls(pnlByDay[bestIdx])}">${money(pnlByDay[bestIdx], true)}</span></div></div>` : ""}
+          ${quoteKey ? `<div class="hl"><div class="k">From your journal · ${fromYmd(quoteKey).toLocaleDateString("en-US", { weekday: "long" })}</div><blockquote>${esc(state.days[quoteKey].journal.length > 260 ? state.days[quoteKey].journal.slice(0, 260) + "…" : state.days[quoteKey].journal)}</blockquote></div>` : ""}
+          ${wins.length ? `<div class="hl"><div class="k">Wins this week</div>${wins.map((w) => `<div class="v trophy">${esc(w.title)}</div>`).join("")}</div>` : ""}
+          ${hiE && loE ? `<div class="hl"><div class="k">Pattern (all time)</div><div class="v small">On high-energy days you average <span class="${cls(hiE.per)}">${money(hiE.per, true)}</span>; on low-energy days <span class="${cls(loE.per)}">${money(loE.per, true)}</span>.</div></div>` : ""}
+          ${bestIdx < 0 && !quoteKey && !wins.length ? `<div class="empty" style="height:auto;padding:30px 10px"><p>Highlights from your trades, journal and wins will show up here.</p></div>` : ""}
+        </div>
+      </div>
+    </section>`;
+    view.querySelectorAll("[data-week]").forEach((b) => b.addEventListener("click", () => {
+      const step = Number(b.dataset.week);
+      if (step === 0) state.recapWeek = weekStart(new Date());
+      else { const n = new Date(state.recapWeek); n.setDate(n.getDate() + step * 7); state.recapWeek = n; }
+      renderRecap();
+    }));
+    view.querySelectorAll("[data-goto]").forEach((r) => r.addEventListener("click", () => {
+      const d = fromYmd(r.dataset.goto);
+      state.daily.selected = r.dataset.goto; state.daily.month = new Date(d.getFullYear(), d.getMonth(), 1);
+      location.hash = "#/daily";
+    }));
   }
 
   // ------------------------------------------------------------------ modals
@@ -732,6 +1104,8 @@
     if (act === "log") tradeForm();
     else if (act === "add-account") accountForm();
     else if (act === "settings") settingsForm();
+    else if (act === "add-book") bookForm();
+    else if (act === "add-win") winForm();
   });
   document.addEventListener("keydown", (e) => {
     if (modalRoot.innerHTML || e.target.matches("input, textarea, select")) return;
